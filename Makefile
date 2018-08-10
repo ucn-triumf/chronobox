@@ -1,29 +1,26 @@
-#
-TARGET = HPS_FPGA_LED
-SOCEDS_ROOT = /daq/daqshare/olchansk/altera/17.1-EDS/embedded
+# Makefile for chronobox software. K.Olchanski TRIUMF August 2018
 
+CFLAGS += -std=c++11 -Wall -Wuninitialized -g -Ialtera -Dsoc_cv_av 
 
-#
-ALT_DEVICE_FAMILY ?= soc_cv_av
-SOCEDS_ROOT ?= $(SOCEDS_DEST_ROOT)
-HWLIBS_ROOT = $(SOCEDS_ROOT)/ip/altera/hps/altera_hps/hwlib
-CROSS_COMPILE = arm-linux-gnueabihf-
-CFLAGS = -g -Wall   -D$(ALT_DEVICE_FAMILY) -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY)   -I$(HWLIBS_ROOT)/include/
-LDFLAGS =  -g -Wall 
-CC = $(CROSS_COMPILE)gcc
-ARCH= arm
+EXES += main.exe
+EXES += srunner_cb.exe
 
-build: $(TARGET)
-$(TARGET): main.o 
-	$(CC) $(LDFLAGS)   $^ -o $@  
-%.o : %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+all:: $(EXES)
 
-.PHONY: clean
 clean:
-	rm -f $(TARGET) *.a *.o *~ 
+	rm -f $(EXES) *.o
 
-native:
-	gcc -o main.exe -Wall -g -Ialtera -Dsoc_cv_av main.c
+%.o: %.cxx
+	g++ -c -o $@ $(CFLAGS) $<
+
+main.exe: main.o cb.o
+	g++ -o $@ $(CFLAGS) $^
+
+srunner_cb.exe: srunner_cb.o cb.o
+	g++ -o $@ $(CFLAGS) $^
+
+
+#	gcc -o main.exe main.c
+#	g++ -o srunner_cb.exe -Wall -g -Ialtera -Dsoc_cv_av srunner_cb.cxx cb.cxx
 
 #end

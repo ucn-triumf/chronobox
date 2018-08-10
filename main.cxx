@@ -6,6 +6,7 @@ refer to user manual chapter 7 for details about the demo
 
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -79,6 +80,9 @@ int main() {
 	int led_mask;
 	void *h2p_lw_led_addr;
 
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
+
 	// map the address space for the LED registers into user space so we can interact with them.
 	// we'll actually map in the entire CSR span of the HPS since we want to access various registers within that span
 
@@ -127,6 +131,23 @@ int main() {
 	int i;
 	for (i=0; i<10; i++) {
 	  printf("cb reg %2d: 0x%08x\n", i, cb_read32(virtual_base, i));
+	}
+
+	if (1) {
+	  uint32_t fwrev = cb_read32(virtual_base, 0);
+	  printf("cb fw rev: 0x%08x\n", fwrev);
+	  printf("fpga reconfigure!\n");
+	  sleep(1);
+	  cb_write32(virtual_base, 0xE, ~fwrev);
+	  //printf("cb regE: 0x%08x\n", cb_read32(virtual_base, 0xE));
+	  sleep(1);
+	  printf("cb fw rev: 0x%08x\n", cb_read32(virtual_base, 0));
+	  sleep(1);
+	  printf("cb fw rev: 0x%08x\n", cb_read32(virtual_base, 0));
+	  sleep(1);
+	  printf("cb fw rev: 0x%08x\n", cb_read32(virtual_base, 0));
+	  printf("done.\n");
+	  exit(1);
 	}
 
 	// reset the counters
