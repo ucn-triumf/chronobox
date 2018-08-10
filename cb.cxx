@@ -103,6 +103,23 @@ void Chronobox::cb_write32bis(int ireg, uint32_t data1, uint32_t data2)
    write32(0x20+0, 0);
 }
 
+void Chronobox::cb_reboot()
+{
+   uint32_t fwrev = cb_read32(0);
+   printf("cb fw rev: 0x%08x\n", fwrev);
+   printf("fpga reconfigure!\n");
+   sleep(1);
+   cb_write32(0xE, ~fwrev);
+   //printf("cb regE: 0x%08x\n", cb_read32(0xE));
+   sleep(1);
+   printf("cb fw rev: 0x%08x\n", cb_read32(0));
+   sleep(1);
+   printf("cb fw rev: 0x%08x\n", cb_read32(0));
+   sleep(1);
+   printf("cb fw rev: 0x%08x\n", cb_read32(0));
+   printf("done.\n");
+}
+
 void Chronobox::cb_read_scaler_begin()
 {
    // write the address register

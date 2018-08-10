@@ -4,6 +4,7 @@ CFLAGS += -std=c++11 -Wall -Wuninitialized -g -Ialtera -Dsoc_cv_av
 
 EXES += main.exe
 EXES += srunner_cb.exe
+EXES += reboot_cb.exe
 
 all:: $(EXES)
 
@@ -16,11 +17,10 @@ clean:
 main.exe: main.o cb.o
 	g++ -o $@ $(CFLAGS) $^
 
-srunner_cb.exe: srunner_cb.o cb.o
+reboot_cb.exe: reboot_cb.o cb.o
 	g++ -o $@ $(CFLAGS) $^
 
-
-#	gcc -o main.exe main.c
-#	g++ -o srunner_cb.exe -Wall -g -Ialtera -Dsoc_cv_av srunner_cb.cxx cb.cxx
+srunner_cb.exe: srunner_cb.o cb.o
+	g++ -o $@ $(CFLAGS) $^
 
 #end

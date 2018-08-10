@@ -25,6 +25,9 @@ class Chronobox
    void cb_write32bis(int ireg, uint32_t data1, uint32_t data2);
 
  public:
+   void cb_reboot();
+
+ public:
    void cb_read_scaler_begin();
    uint32_t cb_read_scaler(int iscaler);
 
