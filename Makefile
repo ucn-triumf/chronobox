@@ -5,6 +5,7 @@ CFLAGS += -std=c++11 -Wall -Wuninitialized -g -Ialtera -Dsoc_cv_av
 EXES += main.exe
 EXES += srunner_cb.exe
 EXES += reboot_cb.exe
+EXES += test_cb.exe
 
 all:: $(EXES)
 
@@ -18,6 +19,9 @@ main.exe: main.o cb.o
 	g++ -o $@ $(CFLAGS) $^
 
 reboot_cb.exe: reboot_cb.o cb.o
+	g++ -o $@ $(CFLAGS) $^
+
+test_cb.exe: test_cb.o cb.o
 	g++ -o $@ $(CFLAGS) $^
 
 srunner_cb.exe: srunner_cb.o cb.o
