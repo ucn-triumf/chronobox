@@ -2,7 +2,6 @@
 
 CFLAGS += -std=c++11 -Wall -Wuninitialized -g -Ialtera -Dsoc_cv_av 
 
-EXES += main.exe
 EXES += srunner_cb.exe
 EXES += reboot_cb.exe
 EXES += test_cb.exe
@@ -14,9 +13,6 @@ clean:
 
 %.o: %.cxx
 	g++ -c -o $@ $(CFLAGS) $<
-
-main.exe: main.o cb.o
-	g++ -o $@ $(CFLAGS) $^
 
 reboot_cb.exe: reboot_cb.o cb.o
 	g++ -o $@ $(CFLAGS) $^
