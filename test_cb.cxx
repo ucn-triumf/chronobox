@@ -17,6 +17,7 @@ void usage()
    printf("test_cb.exe 0 # read register 0\n");
    printf("test_cb.exe 4 0xabcd # write register 4 value 0xabcd\n");
    printf("test_cb.exe scalers # read and print all scalers\n");
+   printf("test_cb.exe flows # read and print H2O flow rates\n");
    printf("test_cb.exe reboot # reboot the fpga\n");
    exit(1);
 }
@@ -63,6 +64,26 @@ int main(int argc, char* argv[])
          for (i=0; i<32+8+18+1; i++) {
             printf("C cb sc %3d: 0x%08x\n", i, cb->cb_read_scaler(i));
          }
+         sleep(1);
+      }
+      exit(0);
+   } else if (strcmp(argv[1], "flows")==0) {
+      uint32_t prevscalers[58];
+      while (1) {
+         // latch the counters
+         cb->cb_write32bis(0, 1, 0);
+         int i = 7;
+         printf("A cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
+         printf("B cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
+         cb->cb_read_scaler_begin();
+         float delta_time = (float) cb->cb_read_scaler(58) - (float)prevscalers[58];
+         delta_time = delta_time / 1e8 * 2;
+         for (i=40; i<40+8; i++) {
+            printf("dT:%f Idx:%3d Diff:%d  Rate:%f\n", delta_time, i, cb->cb_read_scaler(i) - prevscalers[i]
+                   , (float) (cb->cb_read_scaler(i) - prevscalers[i]) / delta_time);
+            prevscalers[i] = cb->cb_read_scaler(i); 
+         }
+         prevscalers[58] = cb->cb_read_scaler(58); 
          sleep(1);
       }
       exit(0);
