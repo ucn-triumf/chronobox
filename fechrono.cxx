@@ -94,7 +94,7 @@ extern "C" {
        1000,                   /* poll time in milliseconds */
        0,                      /* stop run after this event limit */
        0,                      /* number of sub events */
-       1,                      /* whether to log history */
+       0,                      /* whether to log history */
        "", "", "",},
      read_cbms,                /* readout routine */
      NULL,
@@ -368,13 +368,15 @@ INT read_cbms(char *pevent, INT off)
       return 0;
     }
 
+  /* init bank structure */
+  bk_init32(pevent);
+
   /* create data bank */
   uint32_t *pdata32;
-  pdata32 = gCounts;
-
   char bankname[4];
   sprintf(bankname,"CBS%d",frontend_index);
   bk_create(pevent, bankname, TID_DWORD, (void**)&pdata32);
+  pdata32 = gCounts;
   bk_close(pevent, pdata32+gMcsChans);
 
   return bk_size(pevent);
