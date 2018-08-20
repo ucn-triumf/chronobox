@@ -45,8 +45,8 @@ extern "C" {
   /* buffer size to hold events */
   INT event_buffer_size = 300*1024*1024;
 
-  extern INT run_state;
-  extern HNDLE hDB;
+  // extern INT run_state;
+  // extern HNDLE hDB;
 
   /*-- Function declarations -----------------------------------------*/
   INT frontend_init();
@@ -57,27 +57,46 @@ extern "C" {
   INT resume_run(INT run_number, char *error);
   INT frontend_loop();
   
-  INT read_cb(char *pevent, INT off);
+  INT read_cbhist(char *pevent, INT off);
+  INT read_cbms(char *pevent, INT off);
 
   /*-- Equipment list ------------------------------------------------*/
   
   EQUIPMENT equipment[] = {
-    {"chronobox",              /* equipment name */
+    {"cbhist%02d",             /* equipment name */
      { 10,                     /* event ID */
        0,                      /* trigger mask */
-       "SYSTEM",               /* event buffer */
+       "SYSTEM%02d",               /* event buffer */
        EQ_PERIODIC,            /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
        TRUE,                   /* enabled */
        RO_ALWAYS,              /* when to read this event */
-       //       1000,                   /* poll time in milliseconds */
-       50,                   /* poll time in milliseconds */
+       1000,                   /* poll time in milliseconds */
        0,                      /* stop run after this event limit */
        0,                      /* number of sub events */
        1,                      /* whether to log history */
        "", "", "",},
-     read_cb,                  /* readout routine */
+     read_cbhist,              /* readout routine */
+     NULL,
+     NULL,
+     NULL,       /* bank list */
+    },
+    {"cbms%02d",             /* equipment name */
+     { 10,                     /* event ID */
+       0,                      /* trigger mask */
+       "SYSTEM%02d",               /* event buffer */
+       EQ_MULTITHREAD,        /* equipment type */
+       0,                      /* event source */
+       "MIDAS",                /* format */
+       TRUE,                   /* enabled */
+       RO_RUNNING,              /* when to read this event */
+       1000,                   /* poll time in milliseconds */
+       0,                      /* stop run after this event limit */
+       0,                      /* number of sub events */
+       1,                      /* whether to log history */
+       "", "", "",},
+     read_cbms,                /* readout routine */
      NULL,
      NULL,
      NULL,       /* bank list */
@@ -134,9 +153,12 @@ static const int    gMcsChans = 32+8+18+1; // number of scaler channels
 // static int    gMcsMixChan    = -1;  // channel of the Mixing gate pulse signal
 // static char   gMcsMixTalk[256];
 
+uint32_t gPrevCounts[gMcsChans];
+uint32_t gPrevClock=0;
 uint32_t gCounts[gMcsChans];
 uint32_t gClock=0;
 
+extern INT frontend_index;
 
 /*-- Frontend Init -------------------------------------------------*/
 
@@ -163,11 +185,11 @@ INT frontend_init()
   // assign to global pointer
   gcb=cb;
 
-  printf("chronobox frontend_init done!\n");
+  printf("chronobox %02d frontend_init done!\n",frontend_index);
 
   // reset the counter
-  for(int j=0; j<gMcsChans; ++j) gCounts[j]=uint32_t(0);
-  gClock=0;
+  for(int j=0; j<gMcsChans; ++j) gCounts[j]=gPrevCounts[j]=uint32_t(0);
+  gClock=gPrevClock=0;
 
   return SUCCESS;
 }
@@ -191,7 +213,7 @@ INT begin_of_run(INT run_number, char *error)
   gHaveRun = 1;
   gCountEvents = 0;
 
-  printf("begin run: %d\n",run_number);
+  printf("cb %02d begin run: %d\n",frontend_index,run_number);
 
   if( gcb ) return SUCCESS;
   return 0;
@@ -213,10 +235,10 @@ INT end_of_run(INT run_number, char *error)
   
   gInsideEndRun = true;
   
-  // reset the counters
-  gcb->cb_write32bis(0, 2, 0);
+  // // reset the counters
+  // gcb->cb_write32bis(0, 2, 0);
   gHaveRun = 0;
-  printf("end run %d\n",run_number);
+  printf("cb %02d end run %d\n",frontend_index,run_number);
   cm_msg(MINFO, frontend_name, "Run %d finished, read %d events", 
 	run_number, gCountEvents);
 
@@ -263,7 +285,7 @@ extern "C" INT poll_event(INT source, INT count, BOOL test)
     {
       //udelay(1);
       if (test)
-        usleep(1000);
+        usleep(1);
       else
         return TRUE;
     }
@@ -272,7 +294,7 @@ extern "C" INT poll_event(INT source, INT count, BOOL test)
 
 /*-- Event readout -------------------------------------------------*/
 
-INT read_cb(char *pevent, INT off)
+INT read_cbhist(char *pevent, INT off)
 {
   if( gcb ) 
     {
@@ -284,21 +306,15 @@ INT read_cb(char *pevent, INT off)
       return 0;
     }
 
-  uint32_t counts_curr,counts_diff;
-  counts_curr=counts_diff=0;
-
-  // // reset the counters
-  // gcb->cb_write32bis(0, 2, 0);
-
   // latch the counters
   gcb->cb_write32bis(0, 1, 0);
-  gcb->cb_read32(7);
-  gcb->cb_read32(7);
+  // gcb->cb_read32(7);
+  // gcb->cb_read32(7);
   gcb->cb_read_scaler_begin();
   
   // read the clock
-  uint32_t clock_curr=gcb->cb_read_scaler(gMcsClockChan);
-  double time_diff = double(clock_curr-gClock)*gClock_period;
+  gClock=gcb->cb_read_scaler(gMcsClockChan);
+  double time_diff = double(gClock-gPrevClock)*gClock_period;
   if( !time_diff ) 
     {
       cm_msg(MERROR, frontend_name, "Time NOT moving forward");
@@ -308,30 +324,59 @@ INT read_cb(char *pevent, INT off)
   /* init bank structure */
   bk_init32(pevent);
   double *p;
-  bk_create(pevent, "CBMS", TID_DOUBLE, (void**)&p);
+  char bankname[4];
+  sprintf(bankname,"CBH%d",frontend_index);
+  bk_create(pevent, bankname, TID_DOUBLE, (void**)&p);
 
+  uint32_t counts_diff;
   for (int i=0; i<gMcsChans; i++)
     {
       // read the scaler
-      counts_curr = gcb->cb_read_scaler(i);
+      gCounts[i] = gcb->cb_read_scaler(i);
       // compute the difference
-      counts_diff = counts_curr - gCounts[i];
+      counts_diff = gCounts[i] - gPrevCounts[i];
 
-      // printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
-      // 	     i,counts_diff,time_diff,double(counts_diff)/time_diff);
+      if( (gClock % 10000) == 0 )
+	printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
+	       i,counts_diff,time_diff,double(counts_diff)/time_diff);
       
       // TO DATA BANK
       p[i] = double(counts_diff)/time_diff;  // sample Rate in Hz 
 
       // save the variables
-      gCounts[i]=counts_curr;
-      gClock=clock_curr;
+      gPrevCounts[i]=gCounts[i];
       // p[i] = double(gcb->cb_read_scaler(i));
       // printf("ch: %d\tcnt: %1.0f\t%d\n",i,p[i],gcb->cb_read_scaler(i));
     }
+  gPrevClock=gClock;
 
   bk_close(pevent, p+gMcsChans);
   ++gCountEvents;
 
   return bk_size(pevent);
 }
+
+INT read_cbms(char *pevent, INT off)
+{
+  if( gcb ) 
+    {
+      if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
+    }
+  else
+    {
+      cm_msg(MERROR, frontend_name, "Chronobox Read FAIELD");
+      return 0;
+    }
+
+  /* create data bank */
+  uint32_t *pdata32;
+  pdata32 = gCounts;
+
+  char bankname[4];
+  sprintf(bankname,"CBS%d",frontend_index);
+  bk_create(pevent, bankname, TID_DWORD, (void**)&pdata32);
+  bk_close(pevent, pdata32+gMcsChans);
+
+  return bk_size(pevent);
+}
+ 
