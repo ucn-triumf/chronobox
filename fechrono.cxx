@@ -63,25 +63,25 @@ extern "C" {
   /*-- Equipment list ------------------------------------------------*/
   
   EQUIPMENT equipment[] = {
-    {"cbhist%02d",             /* equipment name */
-     { 10,                     /* event ID */
-       0,                      /* trigger mask */
-       "SYSTEM%02d",               /* event buffer */
-       EQ_PERIODIC,            /* equipment type */
-       0,                      /* event source */
-       "MIDAS",                /* format */
-       TRUE,                   /* enabled */
-       RO_ALWAYS,              /* when to read this event */
-       1000,                   /* poll time in milliseconds */
-       0,                      /* stop run after this event limit */
-       0,                      /* number of sub events */
-       1,                      /* whether to log history */
-       "", "", "",},
-     read_cbhist,              /* readout routine */
-     NULL,
-     NULL,
-     NULL,       /* bank list */
-    },
+    // {"cbhist%02d",             /* equipment name */
+    //  { 10,                     /* event ID */
+    //    0,                      /* trigger mask */
+    //    "SYSTEM%02d",               /* event buffer */
+    //    EQ_PERIODIC,            /* equipment type */
+    //    0,                      /* event source */
+    //    "MIDAS",                /* format */
+    //    TRUE,                   /* enabled */
+    //    RO_ALWAYS,              /* when to read this event */
+    //    1000,                   /* poll time in milliseconds */
+    //    0,                      /* stop run after this event limit */
+    //    0,                      /* number of sub events */
+    //    1,                      /* whether to log history */
+    //    "", "", "",},
+    //  read_cbhist,              /* readout routine */
+    //  NULL,
+    //  NULL,
+    //  NULL,       /* bank list */
+    // },
     {"cbms%02d",             /* equipment name */
      { 10,                     /* event ID */
        0,                      /* trigger mask */
@@ -336,9 +336,9 @@ INT read_cbhist(char *pevent, INT off)
       // compute the difference
       counts_diff = gCounts[i] - gPrevCounts[i];
 
-      if( (gClock % 10000) == 0 )
-	printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
-	       i,counts_diff,time_diff,double(counts_diff)/time_diff);
+      //      if( (gClock % 10000) == 0 )
+      printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
+	     i,counts_diff,time_diff,double(counts_diff)/time_diff);
       
       // TO DATA BANK
       p[i] = double(counts_diff)/time_diff;  // sample Rate in Hz 
@@ -368,6 +368,10 @@ INT read_cbms(char *pevent, INT off)
       return 0;
     }
 
+  // latch the counters
+  gcb->cb_write32bis(0, 1, 0);
+  gcb->cb_read_scaler_begin();
+
   /* init bank structure */
   bk_init32(pevent);
 
@@ -376,7 +380,8 @@ INT read_cbms(char *pevent, INT off)
   char bankname[4];
   sprintf(bankname,"CBS%d",frontend_index);
   bk_create(pevent, bankname, TID_DWORD, (void**)&pdata32);
-  pdata32 = gCounts;
+  //pdata32 = gCounts;
+  for (int i=0; i<gMcsChans; i++) pdata32[i] = gcb->cb_read_scaler(i);
   bk_close(pevent, pdata32+gMcsChans);
 
   return bk_size(pevent);
