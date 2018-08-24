@@ -84,7 +84,7 @@ extern "C" {
     // },
     {"cbms%02d",             /* equipment name */
      { 10,                     /* event ID */
-       0,                      /* trigger mask */
+       (1<<10),                      /* trigger mask */
        "SYSTEM",               /* event buffer */
        EQ_MULTITHREAD,        /* equipment type */
        0,                      /* event source */
@@ -383,7 +383,7 @@ INT read_cbms(char *pevent, INT off)
   //pdata32 = gCounts;
   for (int i=0; i<gMcsChans; i++) pdata32[i] = gcb->cb_read_scaler(i);
   bk_close(pevent, pdata32+gMcsChans);
-
+  ++gCountEvents;
   return bk_size(pevent);
 }
  
