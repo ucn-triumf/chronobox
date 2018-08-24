@@ -85,7 +85,7 @@ extern "C" {
     {"cbms%02d",             /* equipment name */
      { 10,                     /* event ID */
        0,                      /* trigger mask */
-       "SYSTEM%02d",               /* event buffer */
+       "SYSTEM",               /* event buffer */
        EQ_MULTITHREAD,        /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
