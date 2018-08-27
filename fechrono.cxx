@@ -63,25 +63,25 @@ extern "C" {
   /*-- Equipment list ------------------------------------------------*/
   
   EQUIPMENT equipment[] = {
-    // {"cbhist%02d",             /* equipment name */
-    //  { 10,                     /* event ID */
-    //    0,                      /* trigger mask */
-    //    "SYSTEM%02d",               /* event buffer */
-    //    EQ_PERIODIC,            /* equipment type */
-    //    0,                      /* event source */
-    //    "MIDAS",                /* format */
-    //    TRUE,                   /* enabled */
-    //    RO_ALWAYS,              /* when to read this event */
-    //    1000,                   /* poll time in milliseconds */
-    //    0,                      /* stop run after this event limit */
-    //    0,                      /* number of sub events */
-    //    1,                      /* whether to log history */
-    //    "", "", "",},
-    //  read_cbhist,              /* readout routine */
-    //  NULL,
-    //  NULL,
-    //  NULL,       /* bank list */
-    // },
+     {"cbhist%02d",             /* equipment name */
+      { 10,                     /* event ID */
+        (1<<10),                      /* trigger mask */
+        "SYSTEM",               /* event buffer */
+        EQ_PERIODIC,            /* equipment type */
+        0,                      /* event source */
+        "MIDAS",                /* format */
+        TRUE,                   /* enabled */
+        RO_ALWAYS,              /* when to read this event */
+        1000,                   /* poll time in milliseconds */
+        0,                      /* stop run after this event limit */
+        0,                      /* number of sub events */
+        1,                      /* whether to log history */
+        "", "", "",},
+      read_cbhist,              /* readout routine */
+      NULL,
+      NULL,
+      NULL,       /* bank list */
+     },
     {"cbms%02d",             /* equipment name */
      { 10,                     /* event ID */
        (1<<10),                      /* trigger mask */
