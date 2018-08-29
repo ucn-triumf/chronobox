@@ -417,14 +417,11 @@ INT read_cbms(char *pevent, INT off)
   gcb->cb_write32bis(0, 1, 0);
   gcb->cb_read_scaler_begin();
 
-  /* init bank structure */
-  bk_init32(pevent);
-
-  /* create data bank */
-  uint32_t *pdata32;
+  uint32_t pdata32[gMcsChans];
   char bankname[4];
   sprintf(bankname,"CBS%d",frontend_index);
-  //bk_create(pevent, bankname, TID_DWORD, (void**)&pdata32);
+
+
   for (int i=0; i<gMcsChans; i++) pdata32[i] = gcb->cb_read_scaler(i);
   //bk_close(pevent, pdata32+gMcsChans);
   gClock=gcb->cb_read_scaler(gMcsClockChan);
@@ -444,19 +441,19 @@ INT read_cbms(char *pevent, INT off)
       gLastChrono[offset+i]= v;
     }
   }
-
-  //int numEvents = gMcsChans;
   uint32_t *mptr = pdata32;
+  
+  /* init bank structure */
+  bk_init32(pevent);
+  /* create data bank */
   ChronoChannelEvent* cce;
-  bk_create(pevent, bankname, TID_BYTE, (void**)&cce);
+  bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
   int ChansWithCounts=0;
   int offset = 0*gMcsChans; //Each frontend handles one chronoboard
   //for (int ievt=0; ievt<numEvents; ievt++)
   //{
       ++gCountEvents;
       //gSumMcsEvents[isis]++;
-      
-      
       for (int i=0; i<gMcsChans; i++)
       {
         uint32_t v = *mptr++;
@@ -464,11 +461,12 @@ INT read_cbms(char *pevent, INT off)
 
         //if (v>0) printf("%d %d %d\n",i,v,gPrevCounts[offset+i]);
         gSaveChrono[offset+i] = dv;
-        if (gSaveChrono[offset+i]>0 && i!=gMcsClockChan)
+        if (gSaveChrono[offset+i]>0 ) //&& i!=gMcsClockChan)
         {
           //printf("Chan:%d - %d\n",i,dv);
-          cce[ChansWithCounts].Channel=(uint8_t)i;
-          cce[ChansWithCounts].Counts=dv;
+          cce++;
+          cce->Channel=(uint8_t)i;
+          cce->Counts=dv;
           ChansWithCounts++;
         }
         gSumChrono[offset+i]+=dv;
@@ -479,12 +477,18 @@ INT read_cbms(char *pevent, INT off)
       //If there were counts in the chrono box... add timestamp on end
       if (ChansWithCounts)
       {
-        cce[ChansWithCounts].Channel=gMcsClockChan;
-        cce[ChansWithCounts].Counts=pdata32[gMcsClockChan];
+        cce++;
+        cce->Channel=gMcsClockChan;
+        cce->Counts=pdata32[gMcsClockChan];
         ChansWithCounts++;
       }
+      else
+      {
+        //No event counts in the readout
+        return 0;
+      }
   //}
-  bk_close(pevent, cce+gCountEvents*5);
+  bk_close(pevent, cce);
   return bk_size(pevent);
 }
  
