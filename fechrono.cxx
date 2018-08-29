@@ -464,10 +464,10 @@ INT read_cbms(char *pevent, INT off)
         if (gSaveChrono[offset+i]>0 ) //&& i!=gMcsClockChan)
         {
           //printf("Chan:%d - %d\n",i,dv);
-          cce++;
           cce->Channel=(uint8_t)i;
           cce->Counts=dv;
           ChansWithCounts++;
+          cce++;
         }
         gSumChrono[offset+i]+=dv;
         if (v > gMaxChrono[offset+i])
@@ -477,10 +477,10 @@ INT read_cbms(char *pevent, INT off)
       //If there were counts in the chrono box... add timestamp on end
       if (ChansWithCounts)
       {
-        cce++;
         cce->Channel=gMcsClockChan;
         cce->Counts=pdata32[gMcsClockChan];
         ChansWithCounts++;
+        cce++;
       }
       else
       {
