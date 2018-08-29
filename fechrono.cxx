@@ -149,7 +149,9 @@ static double gMcsClockFreq = 50000000.0; // clock frequency
 //static double gMcsClockFreq = 10000000.0; // clock frequency
 const double gClock_period = 1./gMcsClockFreq;
 //static int    gMcsChans = 32; // number of scaler channels 
-static const int    gMcsChans = 32+8+18+1; // number of scaler channels 
+//static const int    gMcsChans = 32+8+18+1; // number of scaler channels 
+//Only bother with the first 32 channels
+static const int    gMcsChans = 32; // number of scaler channels 
 
 // static int    gMcsAdChan    = -1;  // channel of the AD pulse signal
 // static char   gMcsAdTalk[256];
@@ -160,14 +162,15 @@ static const int    gMcsChans = 32+8+18+1; // number of scaler channels
 
 //static uint32_t  gSumChronoEvents[gMcsChans]; // sum the number of events
 static uint32_t  gMaxChrono[gMcsChans];  // max value of SIS channels
-//static uint64_t  gSumChrono[gMcsChans];  // sum SIS channels
+static uint32_t  gSumChrono[gMcsChans];  // sum SIS channels
 static uint32_t  gSaveChrono[gMcsChans]; // sampled SIS data
+static uint32_t  gLastChrono[gMcsChans]; // sampled SIS data
 
 
-uint32_t gPrevCounts[gMcsChans];
-//uint32_t gPrevClock=0;
-uint32_t gCounts[gMcsChans];
-//uint32_t gClock=0;
+//uint32_t gPrevCounts[gMcsChans];
+uint32_t gPrevClock=0;
+//uint32_t gCounts[gMcsChans];
+uint32_t gClock=0;
 
 extern INT frontend_index;
 
@@ -199,10 +202,10 @@ INT frontend_init()
   printf("chronobox %02d frontend_init done!\n",frontend_index);
 
   // reset the counter
-  for(int j=0; j<gMcsChans; ++j) gCounts[j]=gPrevCounts[j]=uint32_t(0);
+  //for(int j=0; j<gMcsChans; ++j) gCounts[j]=gPrevCounts[j]=uint32_t(0);
   //gClock=gPrevClock=0;
   
-for(int j=0; j<gMcsChans; ++j) gMaxChrono[j]=gSaveChrono[j]=uint32_t(0); //gSumChronoEvents[j]
+for(int j=0; j<gMcsChans; ++j) gMaxChrono[j]=gSaveChrono[j]=gSumChrono[j]=uint32_t(0); //
 
 //for(int j=0; j<gMcsChans; ++j) gSumChrono[gMcsChans]=uint64_t(0);  // sum SIS channels
 
@@ -366,27 +369,37 @@ INT read_cbhist(char *pevent, INT off)
     }
   gPrevClock=gClock;
 #else
-  uint64_t numClocks = gSaveChrono[gMcsClockChan]-gPrevCounts[gMcsClockChan];
+  uint64_t numClocks = gClock-gPrevClock;
+  gPrevClock=gClock;
   double dt = numClocks/gMcsClockFreq;
   double dt1 = 0;
   if (dt > 0) 
     dt1 = 1.0/dt; 
   for (int i=0; i<gMcsChans; i++)
   {
-     uint32_t counts=gSaveChrono[i]-gPrevCounts[i];
+     uint32_t counts=gSumChrono[i];
      p[i] = (counts)*dt1;  // sample RaTe in Hz
      //if( (numClocks % 10000) == 0 )
      //if (counts>0)
      //   printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
      //     i,counts,dt,p[i]);
   }
-#endif
-  bk_close(pevent, p+gMcsChans);
+  p[gMcsClockChan] = (numClocks)*dt1;
+  #endif
+  //bk_close(pevent, p+gMcsChans);
+  //Force bank to its historic size
+  bk_close(pevent, p+gMcsChans+gMcsClockChan-1);
   for (int i=0; i<gMcsChans; i++)
-    gPrevCounts[i]=gSaveChrono[i];
+    gSumChrono[i]=0;
 
   return bk_size(pevent);
 }
+
+bool FirstEvent=true;
+struct ChronoChannelEvent {
+  uint8_t Channel;
+  uint32_t Counts;
+};
 
 INT read_cbms(char *pevent, INT off)
 {
@@ -411,28 +424,67 @@ INT read_cbms(char *pevent, INT off)
   uint32_t *pdata32;
   char bankname[4];
   sprintf(bankname,"CBS%d",frontend_index);
-  bk_create(pevent, bankname, TID_DWORD, (void**)&pdata32);
-  //pdata32 = gCounts;
+  //bk_create(pevent, bankname, TID_DWORD, (void**)&pdata32);
   for (int i=0; i<gMcsChans; i++) pdata32[i] = gcb->cb_read_scaler(i);
-  bk_close(pevent, pdata32+gMcsChans);
-
+  //bk_close(pevent, pdata32+gMcsChans);
+  gClock=gcb->cb_read_scaler(gMcsClockChan);
+  //Catch first event... use it to count from zero
+  if (FirstEvent)
+  {
+    FirstEvent=false;
+    uint32_t *mptr = pdata32;
+    int offset = 0*gMcsChans; //Each frontend handles one chronoboard
+    //for (int ievt=0; ievt<numEvents; ievt++)
+    //  {
+    ++gCountEvents;
+    //gSumMcsEvents[isis]++;
+    for (int i=0; i<gMcsChans; i++)
+    {
+      uint32_t v = *mptr++;
+      gLastChrono[offset+i]= v;
+    }
+  }
 
   //int numEvents = gMcsChans;
   uint32_t *mptr = pdata32;
+  ChronoChannelEvent* cce;
+  bk_create(pevent, bankname, TID_BYTE, (void**)&cce);
+  int ChansWithCounts=0;
   int offset = 0*gMcsChans; //Each frontend handles one chronoboard
   //for (int ievt=0; ievt<numEvents; ievt++)
-  //  {
+  //{
       ++gCountEvents;
       //gSumMcsEvents[isis]++;
+      
+      
       for (int i=0; i<gMcsChans; i++)
+      {
+        uint32_t v = *mptr++;
+        uint32_t dv = v-gLastChrono[offset+i];
+
+        //if (v>0) printf("%d %d %d\n",i,v,gPrevCounts[offset+i]);
+        gSaveChrono[offset+i] = dv;
+        if (gSaveChrono[offset+i]>0 && i!=gMcsClockChan)
         {
-          uint32_t v = *mptr++;
-          //if (v>0) printf("%d %d %d\n",i,v,gPrevCounts[offset+i]);
-          gSaveChrono[offset+i] = v;
-          if (v > gMaxChrono[offset+i])
-            gMaxChrono[offset+i] = v;
+          //printf("Chan:%d - %d\n",i,dv);
+          cce[ChansWithCounts].Channel=(uint8_t)i;
+          cce[ChansWithCounts].Counts=dv;
+          ChansWithCounts++;
         }
-   // }
+        gSumChrono[offset+i]+=dv;
+        if (v > gMaxChrono[offset+i])
+          gMaxChrono[offset+i] = v;
+        gLastChrono[offset+i]= v;
+      }
+      //If there were counts in the chrono box... add timestamp on end
+      if (ChansWithCounts)
+      {
+        cce[ChansWithCounts].Channel=gMcsClockChan;
+        cce[ChansWithCounts].Counts=pdata32[gMcsClockChan];
+        ChansWithCounts++;
+      }
+  //}
+  bk_close(pevent, cce+gCountEvents*5);
   return bk_size(pevent);
 }
  
