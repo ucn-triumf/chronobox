@@ -478,7 +478,7 @@ INT read_cbms(char *pevent, INT off)
       if (ChansWithCounts)
       {
         cce->Channel=gMcsClockChan;
-        cce->Counts=pdata32[gMcsClockChan];
+        cce->Counts=gClock;
         ChansWithCounts++;
         cce++;
       }
