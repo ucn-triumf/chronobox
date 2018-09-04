@@ -120,6 +120,16 @@ void Chronobox::cb_reboot()
    printf("done.\n");
 }
 
+int Chronobox::cb_read_input_num()
+{
+   uint32_t rev = cb_read32(0);
+   if (rev >= 0x5b89e4b4) {
+      return cb_read32(0xF);
+   } else {
+      return 58;
+   }
+}
+
 void Chronobox::cb_read_scaler_begin()
 {
    // write the address register
