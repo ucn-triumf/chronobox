@@ -57,6 +57,8 @@ int main(int argc, char* argv[])
    } else if (strcmp(argv[1], "fifo")==0) {
       uint32_t prev_ts = 0;
       int prev_ch = 0;
+      int num_scalers = 0;
+      int count_scalers = 0;
       while (1) {
          uint32_t fifo_status = cb->cb_read32(0x10);
          bool fifo_full = fifo_status & 0x80000000;
@@ -67,6 +69,10 @@ int main(int argc, char* argv[])
 
          if (fifo_empty) {
             sleep(1);
+            if (1) {
+               printf("latch scalers!\n");
+               cb->cb_write32bis(0, 1, 0);
+            }
             continue;
          }
 
@@ -79,8 +85,15 @@ int main(int argc, char* argv[])
             cb->cb_write32(0, 0);
             uint32_t v = cb->cb_read32(0x11);
             printf("read %3d: 0x%08x", i, v);
-            if ((v & 0xFFFF0000) == 0xFFFF0000) {
+            if ((v & 0xFF000000) == 0xFF000000) {
                printf(" overflow 0x%04x", v & 0xFFFF);
+            } else if ((v & 0xFF000000) == 0xFE000000) {
+               num_scalers = v & 0xFFFF;
+               count_scalers = 0;
+               printf(" packet of %d scalers", num_scalers);
+            } else if (count_scalers < num_scalers) {
+               printf(" scaler %d", count_scalers);
+               count_scalers++;
             } else {
                uint32_t ts = v & 0x00FFFFFF;
                int ch = (v & 0x7F000000)>>24;
