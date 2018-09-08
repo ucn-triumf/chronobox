@@ -145,8 +145,9 @@ static int gRunNumber      = 0;
 static int gCountEvents    = 0;
 
 static int    gMcsClockChan = 58;  // channel number where the clock is
-static double gMcsClockFreq = 50000000.0; // clock frequency
+//static double gMcsClockFreq = 50000000.0; // clock frequency
 //static double gMcsClockFreq = 10000000.0; // clock frequency
+static double gMcsClockFreq = 100000000.0; // clock frequency
 const double gClock_period = 1./gMcsClockFreq;
 //static int    gMcsChans = 32; // number of scaler channels 
 //static const int    gMcsChans = 32+8+18+1; // number of scaler channels 
