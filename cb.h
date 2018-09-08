@@ -28,6 +28,7 @@ class Chronobox
    void cb_reboot();
 
  public:
+   int cb_read_input_num();
    void cb_read_scaler_begin();
    uint32_t cb_read_scaler(int iscaler);
 
