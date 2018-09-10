@@ -7,7 +7,7 @@
 
 \********************************************************************/
 
-//#include <iostream>
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +56,7 @@ extern "C" {
   
   INT read_cbhist(char *pevent, INT off);
   INT read_cbms(char *pevent, INT off);
+  INT read_flow(char *pevent, INT off);
 
   /*-- Equipment list ------------------------------------------------*/
   
@@ -98,6 +99,27 @@ extern "C" {
        0,                      /* whether to log history */
        "", "", "",},
      read_cbms,                /* readout routine */
+     NULL,
+     NULL,
+     NULL,                     /* bank list */
+    },
+#endif
+#if 1
+    {"cbflow",                 /* equipment name */
+     { 4,                      /* event ID */
+       (1<<4),                 /* trigger mask */
+       "",                     /* event buffer */
+       EQ_PERIODIC,            /* equipment type */
+       0,                      /* event source */
+       "MIDAS",                /* format */
+       TRUE,                   /* enabled */
+       RO_ALWAYS,              /* when to read this event */
+       1000,                   /* poll time in milliseconds */
+       0,                      /* stop run after this event limit */
+       0,                      /* number of sub events */
+       1,                      /* whether to log history */
+       "", "", "",},
+     read_flow,                /* readout routine */
      NULL,
      NULL,
      NULL,                     /* bank list */
@@ -161,6 +183,7 @@ static uint32_t  gSaveChrono[60]; // sampled data
 static uint32_t  gLastChrono[60]; // sampled data
 
 uint32_t gPrevClock=0;
+uint32_t gPrevClock2=0;
 uint32_t gClock=0;
 
 extern INT frontend_index;
@@ -439,3 +462,48 @@ INT read_cbms(char *pevent, INT off)
   return bk_size(pevent);
 }
  
+INT read_flow(char *pevent, INT off)
+{
+  if( frontend_index != 1 )
+    return 0;
+
+  if( gcb ) 
+    {
+      if(0) cm_msg(MINFO, frontend_name, "Chronobox Read Flow");
+    }
+  else
+    {
+      cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
+      return 0;
+    }
+
+  /* init bank structure */
+  bk_init32(pevent);
+  double *p;
+  bk_create(pevent, "CBFL", TID_DOUBLE, (void**)&p);
+
+  uint64_t numClocks = gClock-gPrevClock2;
+  gPrevClock2=gClock;
+  double dt = numClocks*gClock_period, dt1 = 0.;
+  if (dt > 0.) dt1 = 1.0/dt; 
+
+  for( int i=0; i<gNflowChans; i++ )
+    {
+      uint32_t counts=gSumChrono[gFlowChan+i];
+      double rate = (counts)*dt1;  // sample RaTe in Hz
+      p[i] = rate * 1.e-2 + 0.065; // https://daq.triumf.ca/elog-alphag/alphag/1797
+
+      if(0)
+	printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\tflow: %1.2f l/min\n",
+	       i,counts,dt,rate,p[i]);
+    }
+  //  p[gMcsClockChan] = (numClocks)*dt1;
+
+  //Force bank to its historic size
+  bk_close(pevent, p+gNflowChans);
+
+  for (int i=0; i<gNflowChans; i++)
+    gSumChrono[gFlowChan+i]=0;
+
+  return bk_size(pevent);
+}
