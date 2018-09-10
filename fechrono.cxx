@@ -66,14 +66,14 @@ extern "C" {
 #if 1
      {"cbhist%02d",             /* equipment name */
       { 10,                     /* event ID */
-        (1<<10),                      /* trigger mask */
+        (1<<10),                /* trigger mask */
         "SYSTEM",               /* event buffer */
         EQ_PERIODIC,            /* equipment type */
         0,                      /* event source */
         "MIDAS",                /* format */
         TRUE,                   /* enabled */
         RO_ALWAYS,              /* when to read this event */
-        1000,                    /* poll time in milliseconds */
+        1000,                   /* poll time in milliseconds */
         0,                      /* stop run after this event limit */
         0,                      /* number of sub events */
         1,                      /* whether to log history */
@@ -81,20 +81,21 @@ extern "C" {
       read_cbhist,              /* readout routine */
       NULL,
       NULL,
-      NULL,       /* bank list */
+      NULL,                     /* bank list */
      },
 #endif 
 #if 1
-    {"cbms%02d",             /* equipment name */
+    {"cbms%02d",               /* equipment name */
      { 10,                     /* event ID */
-       (1<<10),                      /* trigger mask */
+       (1<<10),                /* trigger mask */
        "SYSTEM",               /* event buffer */
-       EQ_MULTITHREAD,        /* equipment type */
+       // EQ_MULTITHREAD,        /* equipment type */
+       EQ_POLLED,              /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
        TRUE,                   /* enabled */
-       RO_RUNNING,              /* when to read this event */
-       1000,                   /* poll time in milliseconds */
+       RO_ALWAYS,              /* when to read this event */
+       10,                     /* poll time in milliseconds */
        0,                      /* stop run after this event limit */
        0,                      /* number of sub events */
        0,                      /* whether to log history */
@@ -102,7 +103,7 @@ extern "C" {
      read_cbms,                /* readout routine */
      NULL,
      NULL,
-     NULL,       /* bank list */
+     NULL,                     /* bank list */
     },
 #endif
     {""}
@@ -410,7 +411,7 @@ INT read_cbms(char *pevent, INT off)
     }
   else
     {
-      cm_msg(MERROR, frontend_name, "Chronobox Read FAIELD");
+      cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
     }
 
@@ -443,7 +444,6 @@ INT read_cbms(char *pevent, INT off)
     }
   }
   uint32_t *mptr = pdata32;
-  
   /* init bank structure */
   bk_init32(pevent);
   /* create data bank */
