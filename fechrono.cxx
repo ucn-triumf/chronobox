@@ -7,7 +7,7 @@
 
 \********************************************************************/
 
-
+//#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,9 +44,6 @@ extern "C" {
 
   /* buffer size to hold events */
   INT event_buffer_size = 300*1024*1024;
-
-  // extern INT run_state;
-  // extern HNDLE hDB;
 
   /*-- Function declarations -----------------------------------------*/
   INT frontend_init();
@@ -145,20 +142,23 @@ static int gRunNumber      = 0;
 static int gCountEvents    = 0;
 
 static int    gMcsClockChan = 58;  // channel number where the clock is
-//static double gMcsClockFreq = 50000000.0; // clock frequency
-//static double gMcsClockFreq = 10000000.0; // clock frequency
-static double gMcsClockFreq = 100000000.0; // clock frequency
+//static double gMcsClockFreq = 50000000.0; // clock frequency = 50 MHz
+//static double gMcsClockFreq = 10000000.0; // clock frequency = 10 MHz
+static double gMcsClockFreq = 100000000.0; // clock frequency = 100 MHz
 const double gClock_period = 1./gMcsClockFreq;
 
-//static int    gMcsChans = 32; // number of scaler channels 
-//static const int    gMcsChans = 32+8+18+1; // number of scaler channels 
-//Only bother with the first 32 channels
-static const int    gMcsChans = 32; // number of scaler channels 
 
-static uint32_t  gMaxChrono[gMcsChans];  // max value of SIS channels
-static uint32_t  gSumChrono[gMcsChans];  // sum SIS channels
-static uint32_t  gSaveChrono[gMcsChans]; // sampled SIS data
-static uint32_t  gLastChrono[gMcsChans]; // sampled SIS data
+// number of channels: 32+8+18+1
+//static const int gCbChans = 60; // number of channels
+static int gCbChans = 58; // number of channels
+static const int gMcsChans = 32; // number of scaler channels 
+static const int gFlowChan = 40; // first flowmeter channel
+static const int gNflowChans = 8; // number of flowmeter channel
+
+static uint32_t  gMaxChrono[60];  // max value of channels
+static uint32_t  gSumChrono[60];  // sum channels
+static uint32_t  gSaveChrono[60]; // sampled data
+static uint32_t  gLastChrono[60]; // sampled data
 
 uint32_t gPrevClock=0;
 uint32_t gClock=0;
@@ -189,10 +189,14 @@ INT frontend_init()
   
   // assign to global pointer
   gcb=cb;
+  gCbChans = gcb->cb_read_input_num(); 
 
   printf("chronobox %02d frontend_init done!\n",frontend_index);
   
-  for(int j=0; j<gMcsChans; ++j) gMaxChrono[j]=gSaveChrono[j]=gSumChrono[j]=uint32_t(0);
+  for(int j=0; j<gCbChans; ++j) gMaxChrono[j]=gSaveChrono[j]=gSumChrono[j]=uint32_t(0);
+  char nchan[64];
+  sprintf(nchan,"chronobox %02d, reading from %d inputs\n",frontend_index,gCbChans);
+  cm_msg(MINFO, frontend_name, nchan);
 
   return SUCCESS;
 }
@@ -302,7 +306,7 @@ INT read_cbhist(char *pevent, INT off)
     }
   else
     {
-      cm_msg(MERROR, frontend_name, "Chronobox Read FAIELD");
+      cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
     }
 
@@ -362,26 +366,30 @@ INT read_cbms(char *pevent, INT off)
   gcb->cb_write32bis(0, 1, 0);
   gcb->cb_read_scaler_begin();
 
-  uint32_t pdata32[gMcsChans];
+  uint32_t pdata32[gCbChans];
   char bankname[4];
   sprintf(bankname,"CBS%d",frontend_index);
+  if(0) std::cout<<bankname<<" created"<<std::endl;
 
-
-  for (int i=0; i<gMcsChans; i++) pdata32[i] = gcb->cb_read_scaler(i);
+  // read all the inputs, except for the clock
+  for( int i=0; i<gCbChans; i++ ) pdata32[i] = gcb->cb_read_scaler(i);
  
+  // the clock is read here
   gClock=gcb->cb_read_scaler(gMcsClockChan);
+
   //Catch first event... use it to count from zero
   if( FirstEvent )
     {
       FirstEvent=false;
       uint32_t *mptr = pdata32;
-      int offset = 0*gMcsChans; //Each frontend handles one chronoboard 
+      int offset = 0*gCbChans; //Each frontend handles one chronoboard 
       ++gCountEvents;
-      for (int i=0; i<gMcsChans; i++)
+      for (int i=0; i<gCbChans; i++)
 	{
 	  uint32_t v = *mptr++;
 	  gLastChrono[offset+i]= v;
 	}
+      cm_msg(MINFO, frontend_name, " First Event!\n");
     }
   uint32_t *mptr = pdata32;
   /* init bank structure */
@@ -390,10 +398,10 @@ INT read_cbms(char *pevent, INT off)
   ChronoChannelEvent* cce;
   bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
   int ChansWithCounts=0;
-  int offset = 0*gMcsChans; //Each frontend handles one chronoboard
+  int offset = 0*gCbChans; //Each frontend handles one chronoboard
   ++gCountEvents;
 
-  for (int i=0; i<gMcsChans; i++)
+  for( int i=0; i<gCbChans; i++ )
     {
       uint32_t v = *mptr++;
       uint32_t dv = v-gLastChrono[offset+i];
