@@ -510,6 +510,7 @@ INT read_flow(char *pevent, INT off)
   double dt = numClocks*gClock_period, dt1 = 0.;
   if (dt > 0.) dt1 = 1.0/dt; 
 
+  double TotFlow=0.;
   for( int i=0; i<gNflowChans; i++ )
     {
       uint32_t counts=gSumChrono[gFlowChan+i];
@@ -519,6 +520,7 @@ INT read_flow(char *pevent, INT off)
       if(0)
 	printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\tflow: %1.2f l/min\n",
 	       i,counts,dt,rate,p[i]);
+      TotFlow += p[i];
     }
   //  p[gMcsClockChan] = (numClocks)*dt1;
 
@@ -527,6 +529,15 @@ INT read_flow(char *pevent, INT off)
 
   for (int i=0; i<gNflowChans; i++)
     gSumChrono[gFlowChan+i]=0;
+
+  char stat[64];
+  sprintf(stat,"Tot H20 Flow: %1.1f l/min",TotFlow);
+  char col[64];
+  if( TotFlow < 1. )
+    sprintf(col,"yellow");
+  else
+    sprintf(col,"#00FF00");
+  set_equipment_status("cbflow01",stat,col);
 
   return bk_size(pevent);
 }
