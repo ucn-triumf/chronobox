@@ -105,7 +105,7 @@ extern "C" {
     },
 #endif
 #if 1
-    {"cbflow",                 /* equipment name */
+    {"cbflow%02d",             /* equipment name */
      { 4,                      /* event ID */
        (1<<4),                 /* trigger mask */
        "",                     /* event buffer */
@@ -192,6 +192,7 @@ extern INT frontend_index;
 
 INT frontend_init()
 {
+
   printf("chronobox frontend_init start!\n");
   int status;
 
@@ -215,7 +216,29 @@ INT frontend_init()
   gCbChans = gcb->cb_read_input_num(); 
 
   printf("chronobox %02d frontend_init done!\n",frontend_index);
-  
+
+#if 1
+  // Disable and hide the equipment in case of index != 1
+  // no flowmeter connected
+  if (frontend_index != 1) {
+    int size = sizeof(int);
+    int en;
+    char str[64];
+    HNDLE hDB;
+    cm_get_experiment_database(&hDB, NULL);
+    sprintf(str, "/Equipment/cbflow%02d/Common/enabled", frontend_index);
+    db_get_value(hDB, 0, str, &en, &size, TID_BOOL, FALSE);
+    printf("Equipment cbflow idx:%d Enabled:%i \n", frontend_index, en);
+    en = 0;
+    db_set_value(hDB, 0, str, &en, size, 1, TID_BOOL);
+    db_get_value(hDB, 0, str, &en, &size, TID_BOOL, FALSE);
+    sprintf(str, "/Equipment/cbflow%02d/Common/Hidden", frontend_index);
+    en = 1;
+    db_set_value(hDB, 0, str, &en, size, 1, TID_BOOL);
+    printf("Equipment %s Enabled?:%i \n", str, en);
+  }
+#endif
+
   for(int j=0; j<gCbChans; ++j) gMaxChrono[j]=gSaveChrono[j]=gSumChrono[j]=uint32_t(0);
   char nchan[64];
   sprintf(nchan,"chronobox %02d, reading from %d inputs\n",frontend_index,gCbChans);
