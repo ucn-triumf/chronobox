@@ -531,7 +531,7 @@ INT read_flow(char *pevent, INT off)
     gSumChrono[gFlowChan+i]=0;
 
   char stat[64];
-  sprintf(stat,"Tot H20 Flow: %1.1f l/min",TotFlow);
+  sprintf(stat,"Tot H20 Flow: %1.1f[l/min]",TotFlow);
   char col[64];
   if( TotFlow < 1. )
     sprintf(col,"yellow");
