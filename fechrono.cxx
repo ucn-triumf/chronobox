@@ -235,7 +235,7 @@ INT frontend_init()
     sprintf(str, "/Equipment/cbflow%02d/Common/Hidden", frontend_index);
     en = 1;
     db_set_value(hDB, 0, str, &en, size, 1, TID_BOOL);
-    printf("Equipment %s Enabled?:%i \n", str, en);
+    printf("Equipment %s :%i \n", str, en);
   }
 #endif
 
