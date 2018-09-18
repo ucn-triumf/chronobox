@@ -163,7 +163,7 @@ static int gHaveRun        = 0;
 static int gRunNumber      = 0;
 static int gCountEvents    = 0;
 
-static int    gMcsClockChan = 58;  // channel number where the clock is
+static int    gMcsClockChan = 59;  // channel number where the clock is
 //static double gMcsClockFreq = 50000000.0; // clock frequency = 50 MHz
 //static double gMcsClockFreq = 10000000.0; // clock frequency = 10 MHz
 static double gMcsClockFreq = 100000000.0; // clock frequency = 100 MHz
