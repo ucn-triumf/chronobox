@@ -428,12 +428,11 @@ INT read_cbms(char *pevent, INT off)
     {
       FirstEvent=false;
       uint32_t *mptr = pdata32;
-      int offset = 0*gCbChans; //Each frontend handles one chronoboard 
       ++gCountEvents;
       for (int i=0; i<gCbChans; i++)
 	{
 	  uint32_t v = *mptr++;
-	  gLastChrono[offset+i]= v;
+	  gLastChrono[i]= v;
 	}
       cm_msg(MINFO, frontend_name, " First Event!\n");
     }
@@ -444,17 +443,16 @@ INT read_cbms(char *pevent, INT off)
   ChronoChannelEvent* cce;
   bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
   int ChansWithCounts=0;
-  int offset = 0*gCbChans; //Each frontend handles one chronoboard
   ++gCountEvents;
 
   for( int i=0; i<gCbChans; i++ )
     {
       uint32_t v = *mptr++;
-      uint32_t dv = v-gLastChrono[offset+i];
+      uint32_t dv = v-gLastChrono[i];
 
-      //if (v>0) printf("%d %d %d\n",i,v,gPrevCounts[offset+i]);
-      gSaveChrono[offset+i] = dv;
-      if (gSaveChrono[offset+i]>0 ) //&& i!=gMcsClockChan)
+      //if (v>0) printf("%d %d %d\n",i,v,gPrevCounts[i]);
+      gSaveChrono[i] = dv;
+      if (gSaveChrono[i]>0 ) //&& i!=gMcsClockChan)
         {
           //printf("Chan:%d - %d\n",i,dv);
           cce->Channel=(uint8_t)i;
@@ -462,10 +460,10 @@ INT read_cbms(char *pevent, INT off)
           ChansWithCounts++;
           cce++;
         }
-      gSumChrono[offset+i]+=dv;
-      if (v > gMaxChrono[offset+i])
-	gMaxChrono[offset+i] = v;
-      gLastChrono[offset+i]= v;
+      gSumChrono[i]+=dv;
+      if (v > gMaxChrono[i])
+         gMaxChrono[i] = v;
+      gLastChrono[i]= v;
     }
   //If there were counts in the chrono box... add timestamp on end
   if (ChansWithCounts)
