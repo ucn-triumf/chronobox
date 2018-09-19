@@ -17,7 +17,7 @@
 #include "midas.h"
 #include "cb.h"
 
-
+  
 /* make frontend functions callable from the C framework */
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +27,8 @@ extern "C" {
 
   /* The frontend name (client name) as seen by other MIDAS clients   */
   const char *frontend_name = "fechrono";
+  
+
   /* The frontend file name, don't change it */
   const char *frontend_file_name = __FILE__;
 
@@ -44,6 +46,8 @@ extern "C" {
 
   /* buffer size to hold events */
   INT event_buffer_size = 300*1024*1024;
+  extern HNDLE hDB;
+
 
   /*-- Function declarations -----------------------------------------*/
   INT frontend_init();
@@ -186,8 +190,10 @@ uint32_t gPrevClock=0;
 uint32_t gPrevClock2=0;
 uint32_t gClock=0;
 
-extern INT frontend_index;
+std::vector<std::string> ChannelNames;
 
+extern INT frontend_index;
+#include "utils.cxx"
 /*-- Frontend Init -------------------------------------------------*/
 
 INT frontend_init()
@@ -198,6 +204,25 @@ INT frontend_init()
 
   setbuf(stdout,NULL);
   setbuf(stderr,NULL);
+
+  char str[64];
+  sprintf(str, "/Equipment/cbms%02d/Settings/ChannelNames", frontend_index);
+  odbReadString(str, 0, "dummy", 250);
+  odbResizeArray(str, TID_STRING, 60);
+
+  int sz = odbReadArraySize(str);
+  int last = 0;
+  for (int i=0; i<sz; i++) {
+    const char* s = odbReadString(str, i, NULL, 250);
+    if (strlen(s) < 1)
+      continue;
+    if (s[0] == '#')
+      continue;
+    printf("Channel Name %d:%s\n", i, s);
+    ChannelNames.push_back(s);
+    last = i;
+  }
+
 
   Chronobox* cb = new Chronobox();
 
