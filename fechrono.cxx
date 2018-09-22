@@ -60,6 +60,7 @@ extern "C" {
   
   INT read_cbhist(char *pevent, INT off);
   INT read_cbms(char *pevent, INT off);
+  INT read_cbms_fifo(char *pevent, INT off);
   INT read_flow(char *pevent, INT off);
 
   /*-- Equipment list ------------------------------------------------*/
@@ -91,8 +92,8 @@ extern "C" {
      { 10,                     /* event ID */
        (1<<10),                /* trigger mask */
        "SYSTEM",               /* event buffer */
-       // EQ_MULTITHREAD,        /* equipment type */
-       EQ_POLLED,              /* equipment type */
+        EQ_MULTITHREAD,        /* equipment type */
+       //EQ_POLLED,              /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
        TRUE,                   /* enabled */
@@ -102,7 +103,7 @@ extern "C" {
        0,                      /* number of sub events */
        0,                      /* whether to log history */
        "", "", "",},
-     read_cbms,                /* readout routine */
+     read_cbms_fifo,                /* readout routine */
      NULL,
      NULL,
      NULL,                     /* bank list */
@@ -185,6 +186,10 @@ static uint32_t  gMaxChrono[60];  // max value of channels
 static uint32_t  gSumChrono[60];  // sum channels
 static uint32_t  gSaveChrono[60]; // sampled data
 static uint32_t  gLastChrono[60]; // sampled data
+
+uint32_t gFifoClock[60]={0};
+uint32_t gPrevFifoClock[60]={0};
+int NFifoChans=4;
 
 uint32_t gPrevClock=0;
 uint32_t gPrevClock2=0;
@@ -380,7 +385,6 @@ INT read_cbhist(char *pevent, INT off)
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
     }
-
   /* init bank structure */
   bk_init32(pevent);
   double *p;
@@ -395,15 +399,15 @@ INT read_cbhist(char *pevent, INT off)
   double dt1 = 0.;
   if (dt > 0.) 
     dt1 = 1.0/dt; 
-  for (int i=0; i<gMcsChans; i++)
-    {
-      uint32_t counts=gSumChrono[i];
-      p[i] = (counts)*dt1;  // sample RaTe in Hz
-      //if( (numClocks % 10000) == 0 )
-      //if (counts>0)
-      //   printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
-      //     i,counts,dt,p[i]);
-    }
+  for (int i=0; i<gMcsChans; i++) //Fifo could be asnycronus to other chans
+  {
+   
+    uint32_t counts=gSumChrono[i];
+    p[i] = (counts)*dt1;  // sample RaTe in Hz
+    if (counts>0)
+         printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
+           i,counts,dt,p[i]);
+  }
   p[gMcsClockChan] = (numClocks)*dt1;
 
   //Force bank to its historic size
@@ -420,94 +424,89 @@ struct ChronoChannelEvent {
   uint8_t Channel;
   uint32_t Counts;
 };
-
-INT read_cbms(char *pevent, INT off)
+INT read_cbms_fifo(char *pevent, INT off)
 {
-  if( gcb ) 
-    {
-      if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
-    }
-  else
-    {
-      cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
-      return 0;
-    }
+   char bankname[4];
+   sprintf(bankname,"CBS%d",frontend_index);
+   bk_init32(pevent);
+   ChronoChannelEvent* cce;
+   bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
+   int ChansWithCounts=0;
+   
+     uint32_t prev_ts = 0;
+      int prev_ch = 0;
+      int num_scalers = 0;
+      int count_scalers = 0;
+      while (1) 
+      {
+         uint32_t fifo_status = gcb->cb_read32(0x10);
+         bool fifo_full = fifo_status & 0x80000000;
+         bool fifo_empty = fifo_status & 0x40000000;
+         int fifo_used = fifo_status & 0x00FFFFFF;
 
-  // latch the counters
-  gcb->cb_write32bis(0, 1, 0);
-  gcb->cb_read_scaler_begin();
+         printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
 
-  uint32_t pdata32[gCbChans];
-  char bankname[4];
-  sprintf(bankname,"CBS%d",frontend_index);
-  if(0) std::cout<<bankname<<" created"<<std::endl;
+         if (fifo_empty) {
+            sleep(1);
+            if (1) {
+               printf("latch scalers!\n");
+               gcb->cb_write32bis(0, 1, 0);
+            }
+            continue;
+         }
 
-  // read all the inputs, except for the clock
-  for( int i=0; i<gCbChans; i++ ) pdata32[i] = gcb->cb_read_scaler(i);
- 
-  // the clock is read here
-  gClock=gcb->cb_read_scaler(gMcsClockChan);
-
-  //Catch first event... use it to count from zero
-  if( FirstEvent )
-    {
-      FirstEvent=false;
-      uint32_t *mptr = pdata32;
-      ++gCountEvents;
-      for (int i=0; i<gCbChans; i++)
-	{
-	  uint32_t v = *mptr++;
-	  gLastChrono[i]= v;
-	}
-      cm_msg(MINFO, frontend_name, " First Event!\n");
-    }
-  uint32_t *mptr = pdata32;
-  /* init bank structure */
-  bk_init32(pevent);
-  /* create data bank */
-  ChronoChannelEvent* cce;
-  bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
-  int ChansWithCounts=0;
-  ++gCountEvents;
-
-  for( int i=0; i<gCbChans; i++ )
-    {
-      uint32_t v = *mptr++;
-      uint32_t dv = v-gLastChrono[i];
-
-      //if (v>0) printf("%d %d %d\n",i,v,gPrevCounts[i]);
-      gSaveChrono[i] = dv;
-      if (gSaveChrono[i]>0 ) //&& i!=gMcsClockChan)
-        {
-          //printf("Chan:%d - %d\n",i,dv);
-          cce->Channel=(uint8_t)i;
-          cce->Counts=dv;
-          ChansWithCounts++;
-          cce++;
-        }
-      gSumChrono[i]+=dv;
-      if (v > gMaxChrono[i])
-         gMaxChrono[i] = v;
-      gLastChrono[i]= v;
-    }
-  //If there were counts in the chrono box... add timestamp on end
-  if (ChansWithCounts)
-    {
-      cce->Channel=gMcsClockChan;
-      cce->Counts=gClock;
-      ChansWithCounts++;
-      cce++;
-    }
-  else
-    {
-      //No event counts in the readout
-      return 0;
-    }
-  //}
-  bk_close(pevent, cce);
-  return bk_size(pevent);
+         if (fifo_full && fifo_used == 0) {
+            fifo_used = 0x10;
+         }
+         
+         for (int i=0; i<fifo_used; i++) {
+            gcb->cb_write32(0, 4);
+            gcb->cb_write32(0, 0);
+            uint32_t v = gcb->cb_read32(0x11);
+            //printf("read %3d: 0x%08x", i, v);
+            printf("read %3d: %d", i, v);
+            if ((v & 0xFF000000) == 0xFF000000) {
+               printf(" overflow 0x%04x", v & 0xFFFF);
+            } else if ((v & 0xFF000000) == 0xFE000000) {
+               num_scalers = v & 0xFFFF;
+               count_scalers = 0;
+               printf(" packet of %d scalers", num_scalers);
+            } else if (count_scalers < num_scalers) {
+               printf(" scaler %d", count_scalers);
+               
+               uint32_t dv = v-gLastChrono[count_scalers];
+               gSaveChrono[count_scalers] = dv;
+               if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
+               {
+                  printf("\tChan:%d - %d\t",count_scalers,dv);
+                  //BUILD BANK HERE!
+               }
+               gSumChrono[count_scalers]+=dv;
+               if (v > gMaxChrono[count_scalers])
+                  gMaxChrono[count_scalers] = v;
+               gLastChrono[count_scalers]= v;
+               count_scalers++;
+            } else {
+               uint32_t ts = v & 0x00FFFFFF;
+               int ch = (v & 0x7F000000)>>24;
+               
+               if (ts == prev_ts) {
+                  if (ch != prev_ch) {
+                     printf(" coinc");
+                  } else {
+                     printf(" dupe");
+                  }
+               } else if (ts < prev_ts) {
+                  printf(" wrap");
+               }
+               prev_ts = ts;
+               prev_ch = ch;
+            }
+            printf("\n");
+         }
+         gClock=gLastChrono[59];
+      }
 }
- 
 INT read_flow(char *pevent, INT off)
 {
   if( frontend_index != 1 )
