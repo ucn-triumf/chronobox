@@ -448,23 +448,26 @@ INT read_cbms_fifo(char *pevent, INT off)
       int prev_ch = 0;
       int num_scalers = 0;
       int count_scalers = 0;
-      while (1) 
+      //while (1) 
       {
          uint32_t fifo_status = gcb->cb_read32(0x10);
          bool fifo_full = fifo_status & 0x80000000;
          bool fifo_empty = fifo_status & 0x40000000;
          int fifo_used = fifo_status & 0x00FFFFFF;
 
-         printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
-
-         if (fifo_empty) {
-            sleep(1);
+        
+         if (fifo_empty)
+         {
+            return NULL;
+         }
+	     else{
             if (1) {
                printf("latch scalers!\n");
                gcb->cb_write32bis(0, 1, 0);
             }
-            continue;
+            //continue;
          }
+ printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
 
          if (fifo_full && fifo_used == 0) {
             fifo_used = 0x10;
@@ -513,6 +516,12 @@ INT read_cbms_fifo(char *pevent, INT off)
                   }
                } else if (ts < prev_ts) {
                   printf(" wrap");
+               }
+               if (prev_ts != ts)
+               {
+                  cce->Channel=99;
+                  cce->Counts=ts;
+                  cce++;
                }
                prev_ts = ts;
                prev_ch = ch;
