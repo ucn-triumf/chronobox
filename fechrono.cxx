@@ -522,6 +522,10 @@ INT read_cbms_fifo(char *pevent, INT off)
          gClock=gLastChrono[59];
          if (ChansWithCounts)
          {
+            cce->Channel=gMcsClockChan;
+            cce->Counts=gClock;
+            ChansWithCounts++;
+            cce++;
             bk_close(pevent, cce);
             return bk_size(pevent);
          }
