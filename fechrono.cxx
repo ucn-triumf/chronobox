@@ -500,7 +500,7 @@ INT read_cbms_fifo(char *pevent, INT off)
                if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
                {
                   printf("\tChan:%d - %d\t",count_scalers,dv);
-                  cce->Channel=(uint8_t)i;
+                  cce->Channel=(uint8_t)count_scalers;
                   cce->Counts=dv;
                   ChansWithCounts++;
                   cce++;
