@@ -426,15 +426,15 @@ struct ChronoChannelEvent {
 };
 INT read_cbms_fifo(char *pevent, INT off)
 {
-  if( gcb )
-    {
+   if( gcb )
+   {
       if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
-    }
-  else
-    {
+   }
+   else
+   {
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
-    }
+   }
    char bankname[4];
    sprintf(bankname,"CBS%d",frontend_index);
    /* init bank structure */
@@ -444,35 +444,42 @@ INT read_cbms_fifo(char *pevent, INT off)
    bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
    int ChansWithCounts=0;
    
-     uint32_t prev_ts = 0;
-      int prev_ch = 0;
-      int num_scalers = 0;
-      int count_scalers = 0;
-      //while (1) 
+   uint32_t prev_ts = 0;
+   int prev_ch = 0;
+   int num_scalers = 0;
+   int count_scalers = 0;
+   //while (1) 
+   {
+      uint32_t fifo_status = gcb->cb_read32(0x10);
+      bool fifo_full  = fifo_status & 0x80000000;
+      bool fifo_empty = fifo_status & 0x40000000;
+      int fifo_used   = fifo_status & 0x00FFFFFF;
+      if (fifo_empty)
       {
-         uint32_t fifo_status = gcb->cb_read32(0x10);
-         bool fifo_full = fifo_status & 0x80000000;
-         bool fifo_empty = fifo_status & 0x40000000;
-         int fifo_used = fifo_status & 0x00FFFFFF;
-
-        
-         if (fifo_empty)
+         return NULL;
+      }
+      else
+      {
+         //Sleep(1);
+         if (1) 
          {
-            return NULL;
+            printf("latch scalers!\n");
+            gcb->cb_write32bis(0, 1, 0);
          }
-	     else{
-            if (1) {
-               printf("latch scalers!\n");
-               gcb->cb_write32bis(0, 1, 0);
-            }
             //continue;
          }
- printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
-
+         printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
          if (fifo_full && fifo_used == 0) {
             fifo_used = 0x10;
          }
-
+         
+         if (fifo_used>300)
+         {
+            std::cout<<"fifo_used>300... bad event? skipping"<<std::endl;
+            cm_msg(MINFO, frontend_name, "fifo_used>300... bad event? skipping");
+            fifo_used=0;
+         }
+         
          for (int i=0; i<fifo_used; i++) {
             gcb->cb_write32(0, 4);
             gcb->cb_write32(0, 0);
