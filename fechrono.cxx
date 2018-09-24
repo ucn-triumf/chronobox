@@ -92,8 +92,8 @@ extern "C" {
      { 10,                     /* event ID */
        (1<<10),                /* trigger mask */
        "SYSTEM",               /* event buffer */
-        EQ_MULTITHREAD,        /* equipment type */
-       //EQ_POLLED,              /* equipment type */
+       //EQ_MULTITHREAD,        /* equipment type */
+       EQ_POLLED,              /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
        TRUE,                   /* enabled */
@@ -426,9 +426,20 @@ struct ChronoChannelEvent {
 };
 INT read_cbms_fifo(char *pevent, INT off)
 {
+  if( gcb )
+    {
+      if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
+    }
+  else
+    {
+      cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
+      return 0;
+    }
    char bankname[4];
    sprintf(bankname,"CBS%d",frontend_index);
+   /* init bank structure */
    bk_init32(pevent);
+   /* create data bank */
    ChronoChannelEvent* cce;
    bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
    int ChansWithCounts=0;
@@ -458,7 +469,7 @@ INT read_cbms_fifo(char *pevent, INT off)
          if (fifo_full && fifo_used == 0) {
             fifo_used = 0x10;
          }
-         
+
          for (int i=0; i<fifo_used; i++) {
             gcb->cb_write32(0, 4);
             gcb->cb_write32(0, 0);
@@ -479,6 +490,10 @@ INT read_cbms_fifo(char *pevent, INT off)
                if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
                {
                   printf("\tChan:%d - %d\t",count_scalers,dv);
+                  cce->Channel=(uint8_t)i;
+                  cce->Counts=dv;
+                  ChansWithCounts++;
+                  cce++;
                   //BUILD BANK HERE!
                }
                gSumChrono[count_scalers]+=dv;
@@ -505,6 +520,11 @@ INT read_cbms_fifo(char *pevent, INT off)
             printf("\n");
          }
          gClock=gLastChrono[59];
+         if (ChansWithCounts)
+         {
+            bk_close(pevent, cce);
+            return bk_size(pevent);
+         }
       }
 }
 INT read_flow(char *pevent, INT off)
