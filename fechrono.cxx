@@ -424,6 +424,9 @@ struct ChronoChannelEvent {
   uint8_t Channel;
   uint32_t Counts;
 };
+
+   ChronoChannelEvent* cce;
+   int ChansWithCounts=0;
 INT read_cbms_fifo(char *pevent, INT off)
 {
    if( gcb )
@@ -435,15 +438,16 @@ INT read_cbms_fifo(char *pevent, INT off)
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
    }
-   char bankname[4];
-   sprintf(bankname,"CBS%d",frontend_index);
-   /* init bank structure */
-   bk_init32(pevent);
-   /* create data bank */
-   ChronoChannelEvent* cce;
-   bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
-   int ChansWithCounts=0;
-   
+   if (ChansWithCounts==0)
+   {
+      char bankname[4];
+      sprintf(bankname,"CBS%d",frontend_index);
+      /* init bank structure */
+      bk_init32(pevent);
+      /* create data bank */
+      bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
+   }
+   int LastChansWithCounts=ChansWithCounts;
    uint32_t prev_ts = 0;
    int prev_ch = 0;
    int num_scalers = 0;
@@ -536,16 +540,21 @@ INT read_cbms_fifo(char *pevent, INT off)
             printf("\n");
          }
          gClock=gLastChrono[59];
-         if (ChansWithCounts)
+         //if (ChansWithCounts>LastChansWithCounts)
+         //{
+         //   cce->Channel=gMcsClockChan;
+         //   cce->Counts=gClock;
+         //   ChansWithCounts++;
+         //   cce++;
+         //}
+         if (ChansWithCounts>1000)
          {
-            cce->Channel=gMcsClockChan;
-            cce->Counts=gClock;
-            ChansWithCounts++;
-            cce++;
             bk_close(pevent, cce);
+            ChansWithCounts=0;
             return bk_size(pevent);
          }
       }
+      return 0;
 }
 INT read_flow(char *pevent, INT off)
 {
