@@ -425,8 +425,11 @@ struct ChronoChannelEvent {
   uint32_t Counts;
 };
 
-   ChronoChannelEvent* cce;
-   int ChansWithCounts=0;
+
+int ChansWithCounts=0;
+
+ChronoChannelEvent buffer[1200];
+
 INT read_cbms_fifo(char *pevent, INT off)
 {
    if( gcb )
@@ -437,15 +440,6 @@ INT read_cbms_fifo(char *pevent, INT off)
    {
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
-   }
-   if (ChansWithCounts==0)
-   {
-      char bankname[4];
-      sprintf(bankname,"CBS%d",frontend_index);
-      /* init bank structure */
-      bk_init32(pevent);
-      /* create data bank */
-      bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
    }
    int LastChansWithCounts=ChansWithCounts;
    uint32_t prev_ts = 0;
@@ -504,11 +498,10 @@ INT read_cbms_fifo(char *pevent, INT off)
                if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
                {
                   printf("\tChan:%d - %d\t",count_scalers,dv);
-                  cce->Channel=(uint8_t)count_scalers;
-                  cce->Counts=dv;
+                  buffer[ChansWithCounts].Channel=(uint8_t)count_scalers;
+                  buffer[ChansWithCounts].Counts=dv;
                   ChansWithCounts++;
-                  cce++;
-                  //BUILD BANK HERE!
+                  
                }
                gSumChrono[count_scalers]+=dv;
                if (v > gMaxChrono[count_scalers])
@@ -530,9 +523,9 @@ INT read_cbms_fifo(char *pevent, INT off)
                }
                if (prev_ts != ts)
                {
-                  cce->Channel=99;
-                  cce->Counts=ts;
-                  cce++;
+                  buffer[ChansWithCounts].Channel=99;
+                  buffer[ChansWithCounts].Counts=ts;
+                  ChansWithCounts++;
                }
                prev_ts = ts;
                prev_ch = ch;
@@ -549,6 +542,20 @@ INT read_cbms_fifo(char *pevent, INT off)
          //}
          if (ChansWithCounts>1000)
          {
+            char bankname[4];
+            sprintf(bankname,"CBS%d",frontend_index);
+            /* init bank structure */
+            bk_init32(pevent);
+            ChronoChannelEvent* cce;
+            /* create data bank */
+            bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
+            for (int i=0; i<ChansWithCounts; i++)
+            {
+               cce->Channel=buffer[i].Channel;
+               cce->Counts=buffer[i].Counts;
+               //std::cout<<"AAAA"<<i<<"/"<<ChansWithCounts<<
+               cce++;
+            }
             bk_close(pevent, cce);
             ChansWithCounts=0;
             return bk_size(pevent);
