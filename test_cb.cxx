@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
          printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
 
          if (fifo_empty) {
-            sleep(1);
+            sleep(.5);
             if (1) {
                printf("latch scalers!\n");
                cb->cb_write32bis(0, 1, 0);
@@ -106,6 +106,7 @@ int main(int argc, char* argv[])
                } else if (ts < prev_ts) {
                   printf(" wrap");
                }
+               printf(" ts:%d %d %d",ts,v,ch);
                prev_ts = ts;
                prev_ch = ch;
             }
