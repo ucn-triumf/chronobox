@@ -92,8 +92,8 @@ extern "C" {
      { 10,                     /* event ID */
        (1<<10),                /* trigger mask */
        "SYSTEM",               /* event buffer */
-       //EQ_MULTITHREAD,        /* equipment type */
-       EQ_POLLED,              /* equipment type */
+       EQ_MULTITHREAD,        /* equipment type */
+       //EQ_POLLED,              /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
        TRUE,                   /* enabled */
@@ -420,7 +420,9 @@ INT read_cbhist(char *pevent, INT off)
 }
 
 bool FirstEvent=true;
+
 struct ChronoChannelEvent {
+//Time stamp events are stored as Channel + 100!
   uint8_t Channel;
   uint32_t Counts;
 };
@@ -523,7 +525,8 @@ INT read_cbms_fifo(char *pevent, INT off)
                }
                if (prev_ts != ts)
                {
-                  buffer[ChansWithCounts].Channel=99;
+                  printf("\tTIME:\t%d on %d",ts,ch);
+                  buffer[ChansWithCounts].Channel=100+ch;
                   buffer[ChansWithCounts].Counts=ts;
                   ChansWithCounts++;
                }
