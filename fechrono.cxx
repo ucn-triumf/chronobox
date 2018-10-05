@@ -296,6 +296,16 @@ INT begin_of_run(INT run_number, char *error)
   gHaveRun = 1;
   gCountEvents = 0;
 
+
+
+  
+   uint32_t fwrev = gcb->cb_read32(0);
+   printf("cb fw rev: 0x%08x\n", fwrev);
+    
+   // reset the counters
+   gcb->cb_write32bis(0, 2, 0);
+
+
   printf("cb %02d begin run: %d\n",frontend_index,run_number);
 
   if( gcb ) return SUCCESS;
@@ -444,6 +454,7 @@ INT read_cbms_fifo(char *pevent, INT off)
       return 0;
    }
    int LastChansWithCounts=ChansWithCounts;
+   //Time stamp events:
    uint32_t prev_ts = 0;
    int prev_ch = 0;
    int num_scalers = 0;
@@ -501,13 +512,16 @@ INT read_cbms_fifo(char *pevent, INT off)
                {
                   printf("\tChan:%d - %d\t",count_scalers,dv);
                   buffer[ChansWithCounts].Channel=(uint8_t)count_scalers;
+                  //Set ts a full counter (not difference since last)
+                  if (count_scalers==gMcsClockChan)
+                     dv=v;
                   buffer[ChansWithCounts].Counts=dv;
                   ChansWithCounts++;
-                  
                }
                gSumChrono[count_scalers]+=dv;
                if (v > gMaxChrono[count_scalers])
                   gMaxChrono[count_scalers] = v;
+               //Do not reset clock channel back to zero
                gLastChrono[count_scalers]= v;
                count_scalers++;
             } else {
@@ -552,6 +566,7 @@ INT read_cbms_fifo(char *pevent, INT off)
             ChronoChannelEvent* cce;
             /* create data bank */
             bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
+            //Do I want to send these in reverse order (so that TS is the first event?)
             for (int i=0; i<ChansWithCounts; i++)
             {
                cce->Channel=buffer[i].Channel;
