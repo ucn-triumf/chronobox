@@ -92,13 +92,13 @@ extern "C" {
      { 10,                     /* event ID */
        (1<<10),                /* trigger mask */
        "SYSTEM",               /* event buffer */
-       EQ_MULTITHREAD,        /* equipment type */
-       //EQ_POLLED,              /* equipment type */
+       //EQ_MULTITHREAD,        /* equipment type */
+       EQ_POLLED,              /* equipment type */
        0,                      /* event source */
        "MIDAS",                /* format */
        TRUE,                   /* enabled */
        RO_ALWAYS,              /* when to read this event */
-       10,                     /* poll time in milliseconds */
+       0,                     /* poll time in milliseconds */
        0,                      /* stop run after this event limit */
        0,                      /* number of sub events */
        0,                      /* whether to log history */
@@ -297,7 +297,8 @@ INT begin_of_run(INT run_number, char *error)
   gCountEvents = 0;
 
 
-
+  for (int i=0; i<59; i++)
+    gLastChrono[i]=0;
   
    uint32_t fwrev = gcb->cb_read32(0);
    printf("cb fw rev: 0x%08x\n", fwrev);
@@ -441,6 +442,11 @@ struct ChronoChannelEvent {
 int ChansWithCounts=0;
 
 ChronoChannelEvent buffer[1200];
+//Time stamp events:
+uint32_t prev_ts = 0;
+int prev_ch = 0;
+int num_scalers = 0;
+int count_scalers = 0;
 
 INT read_cbms_fifo(char *pevent, INT off)
 {
@@ -454,11 +460,7 @@ INT read_cbms_fifo(char *pevent, INT off)
       return 0;
    }
    int LastChansWithCounts=ChansWithCounts;
-   //Time stamp events:
-   uint32_t prev_ts = 0;
-   int prev_ch = 0;
-   int num_scalers = 0;
-   int count_scalers = 0;
+
    //while (1) 
    {
       uint32_t fifo_status = gcb->cb_read32(0x10);
@@ -490,7 +492,7 @@ INT read_cbms_fifo(char *pevent, INT off)
             cm_msg(MINFO, frontend_name, "fifo_used>300... bad event? skipping");
             fifo_used=0;
          }
-         
+         bool EVENT_GOOD=true;
          for (int i=0; i<fifo_used; i++) {
             gcb->cb_write32(0, 4);
             gcb->cb_write32(0, 0);
@@ -507,9 +509,18 @@ INT read_cbms_fifo(char *pevent, INT off)
                printf(" scaler %d", count_scalers);
                
                uint32_t dv = v-gLastChrono[count_scalers];
+               if (v<gLastChrono[count_scalers] &&
+                    gLastChrono[count_scalers]<(uint32_t)-((uint16_t)-1)/2)
+                    {
+                  printf("OVERFLOW!?  ");
+                  printf("Treating as corrupt event\n");
+                  EVENT_GOOD=false;
+               }
                gSaveChrono[count_scalers] = dv;
                if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
                {
+                  if (EVENT_GOOD)
+                  {
                   printf("\tChan:%d - %d\t",count_scalers,dv);
                   buffer[ChansWithCounts].Channel=(uint8_t)count_scalers;
                   //Set ts a full counter (not difference since last)
@@ -518,12 +529,12 @@ INT read_cbms_fifo(char *pevent, INT off)
                   else
                      buffer[ChansWithCounts].Counts=dv;
                   ChansWithCounts++;
+                  }
                }
                gSumChrono[count_scalers]+=dv;
                if (v > gMaxChrono[count_scalers])
                   gMaxChrono[count_scalers] = v;
-               //Do not reset clock channel back to zero
-               gLastChrono[count_scalers]= v;
+               if (EVENT_GOOD) gLastChrono[count_scalers]= v;
                count_scalers++;
             } else {
                uint32_t ts = v & 0x00FFFFFF;
@@ -558,7 +569,7 @@ INT read_cbms_fifo(char *pevent, INT off)
          //   ChansWithCounts++;
          //   cce++;
          //}
-         if (ChansWithCounts>1000)
+         if (ChansWithCounts>100)
          {
             char bankname[4];
             sprintf(bankname,"CBS%d",frontend_index);
