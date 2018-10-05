@@ -514,8 +514,9 @@ INT read_cbms_fifo(char *pevent, INT off)
                   buffer[ChansWithCounts].Channel=(uint8_t)count_scalers;
                   //Set ts a full counter (not difference since last)
                   if (count_scalers==gMcsClockChan)
-                     dv=v;
-                  buffer[ChansWithCounts].Counts=dv;
+                     buffer[ChansWithCounts].Counts=v;
+                  else
+                     buffer[ChansWithCounts].Counts=dv;
                   ChansWithCounts++;
                }
                gSumChrono[count_scalers]+=dv;
