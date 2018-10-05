@@ -441,7 +441,8 @@ struct ChronoChannelEvent {
 
 int ChansWithCounts=0;
 
-ChronoChannelEvent buffer[1200];
+ChronoChannelEvent buffer=std::vector<ChronoChannelEvent>;
+//[1200];
 //Time stamp events:
 uint32_t prev_ts = 0;
 int prev_ch = 0;
@@ -514,7 +515,7 @@ INT read_cbms_fifo(char *pevent, INT off)
                     {
                   printf("OVERFLOW!?  ");
                   printf("Treating as corrupt event\n");
-                  EVENT_GOOD=false;
+                  //EVENT_GOOD=false;
                }
                gSaveChrono[count_scalers] = dv;
                if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
@@ -522,12 +523,15 @@ INT read_cbms_fifo(char *pevent, INT off)
                   if (EVENT_GOOD)
                   {
                   printf("\tChan:%d - %d\t",count_scalers,dv);
-                  buffer[ChansWithCounts].Channel=(uint8_t)count_scalers;
+                  ChronoChannelEvent a;
+                  a.Channel=(uint8_t)count_scalers;
+                  
                   //Set ts a full counter (not difference since last)
                   if (count_scalers==gMcsClockChan)
-                     buffer[ChansWithCounts].Counts=v;
+                     a.Counts=v;
                   else
-                     buffer[ChansWithCounts].Counts=dv;
+                     a.Counts=dv;
+                  buffer.push_back(a);
                   ChansWithCounts++;
                   }
                }
@@ -552,8 +556,10 @@ INT read_cbms_fifo(char *pevent, INT off)
                if (prev_ts != ts)
                {
                   printf("\tTIME:\t%d on %d",ts,ch);
-                  buffer[ChansWithCounts].Channel=100+ch;
-                  buffer[ChansWithCounts].Counts=ts;
+                  ChronoChannelEvent e={100+ch,ts};
+                  //buffer[ChansWithCounts].Channel=100+ch;
+                  //buffer[ChansWithCounts].Counts=ts;
+                  buffer.push_back(e);
                   ChansWithCounts++;
                }
                prev_ts = ts;
@@ -579,14 +585,15 @@ INT read_cbms_fifo(char *pevent, INT off)
             /* create data bank */
             bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
             //Do I want to send these in reverse order (so that TS is the first event?)
-            for (int i=0; i<ChansWithCounts; i++)
+            for (int i=0; i<buffer.size(); i++)
             {
-               cce->Channel=buffer[i].Channel;
-               cce->Counts=buffer[i].Counts;
+               cce->Channel=buffer.at(i).Channel;
+               cce->Counts=buffer.at(i).Counts;
                //std::cout<<"AAAA"<<i<<"/"<<ChansWithCounts<<
                cce++;
             }
             bk_close(pevent, cce);
+            buffer.clear();
             ChansWithCounts=0;
             return bk_size(pevent);
          }
