@@ -441,7 +441,7 @@ struct ChronoChannelEvent {
 
 int ChansWithCounts=0;
 
-ChronoChannelEvent buffer=std::vector<ChronoChannelEvent>;
+std::vector<ChronoChannelEvent> buffer;
 //[1200];
 //Time stamp events:
 uint32_t prev_ts = 0;
@@ -592,6 +592,7 @@ INT read_cbms_fifo(char *pevent, INT off)
                //std::cout<<"AAAA"<<i<<"/"<<ChansWithCounts<<
                cce++;
             }
+            
             bk_close(pevent, cce);
             buffer.clear();
             ChansWithCounts=0;
