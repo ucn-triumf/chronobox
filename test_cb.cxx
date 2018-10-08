@@ -59,6 +59,8 @@ int main(int argc, char* argv[])
       int prev_ch = 0;
       int num_scalers = 0;
       int count_scalers = 0;
+      uint32_t last_v[60]={0};
+      
       while (1) {
          uint32_t fifo_status = cb->cb_read32(0x10);
          bool fifo_full = fifo_status & 0x80000000;
@@ -93,6 +95,8 @@ int main(int argc, char* argv[])
                printf(" packet of %d scalers", num_scalers);
             } else if (count_scalers < num_scalers) {
                printf(" scaler %d", count_scalers);
+               if (v<last_v[count_scalers])
+                  printf(" overflow OR corrupt, was %d is %d (diff:%d)",last_v[count_scalers],v,v-last_v[count_scalers]);
                count_scalers++;
             } else {
                uint32_t ts = v & 0x00FFFFFF;
@@ -110,6 +114,7 @@ int main(int argc, char* argv[])
                prev_ts = ts;
                prev_ch = ch;
             }
+            last_v[count_scalers-1]=v;
             printf("\n");
          }
       }
