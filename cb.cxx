@@ -146,6 +146,42 @@ uint32_t Chronobox::cb_read_scaler(int iscaler)
    return read32(0x00+0);
 }
 
+void Chronobox::cb_read_fifo(std::vector<uint32_t> *data)
+{
+   uint32_t fifo_status = cb_read32(0x10);
+   bool fifo_full = fifo_status & 0x80000000;
+   bool fifo_empty = fifo_status & 0x40000000;
+   int fifo_used = fifo_status & 0x00FFFFFF;
+   
+   //printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
+
+   if (fifo_empty) {
+      return;
+   }
+   
+   if (fifo_full && fifo_used == 0) {
+      fifo_used = 0x10;
+   }
+   
+   for (int i=0; i<fifo_used; i++) {
+      cb_write32(0, 4);
+      cb_write32(0, 0);
+      uint32_t v = cb_read32(0x11);
+      //printf("read %3d: 0x%08x\n", i, v);
+      data->push_back(v);
+   }
+}
+
+void Chronobox::cb_latch_scalers()
+{
+   cb_write32bis(0, 1, 0);
+}
+
+void Chronobox::cb_reset_scalers()
+{
+   cb_write32bis(0, 2, 0);
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8

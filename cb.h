@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <vector>
 
 class Chronobox
 {
@@ -28,9 +29,14 @@ class Chronobox
    void cb_reboot();
 
  public:
+   void cb_reset_scalers();
+   void cb_latch_scalers();
+
+ public:
    int cb_read_input_num();
    void cb_read_scaler_begin();
    uint32_t cb_read_scaler(int iscaler);
+   void cb_read_fifo(std::vector<uint32_t> *data);
 
  public:
    char* fBase = NULL;
