@@ -60,33 +60,29 @@ int main(int argc, char* argv[])
       int num_scalers = 0;
       int count_scalers = 0;
       uint32_t last_v[60]={0};
+
+      std::vector<uint32_t> fifo_data;
       
       while (1) {
-         uint32_t fifo_status = cb->cb_read32(0x10);
-         bool fifo_full = fifo_status & 0x80000000;
-         bool fifo_empty = fifo_status & 0x40000000;
-         int fifo_used = fifo_status & 0x00FFFFFF;
+         fifo_data.clear();
+         cb->cb_read_fifo(&fifo_data);
 
-         printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
+         int nread = fifo_data.size();
 
-         if (fifo_empty) {
-            sleep(.5);
+         printf("read %d words\n", nread);
+         
+         if (nread == 0) {
+            sleep(1);
             if (1) {
                printf("latch scalers!\n");
-               cb->cb_write32bis(0, 1, 0);
+               cb->cb_latch_scalers();
             }
             continue;
          }
 
-         if (fifo_full && fifo_used == 0) {
-            fifo_used = 0x10;
-         }
-         
-         for (int i=0; i<fifo_used; i++) {
-            cb->cb_write32(0, 4);
-            cb->cb_write32(0, 0);
-            uint32_t v = cb->cb_read32(0x11);
-            printf("read %3d: 0x%08x", i, v);
+         for (int i=0; i<nread; i++) {
+            uint32_t v = fifo_data[i];
+            printf("read %3d of %3d: 0x%08x", i, nread, v);
             if ((v & 0xFF000000) == 0xFF000000) {
                printf(" overflow 0x%04x", v & 0xFFFF);
             } else if ((v & 0xFF000000) == 0xFE000000) {
@@ -96,7 +92,7 @@ int main(int argc, char* argv[])
             } else if (count_scalers < num_scalers) {
                printf(" scaler %d", count_scalers);
                if (v < last_v[count_scalers]) {
-                  printf(" overflow OR corrupt, was %d is %d (diff:%d)",last_v[count_scalers],v,v-last_v[count_scalers]);
+                  printf(" overflow OR corrupt, was 0x%x now 0x%08x (diff:%d)",last_v[count_scalers],v,v-last_v[count_scalers]);
                }
                last_v[count_scalers] = v;
                count_scalers++;
@@ -123,8 +119,7 @@ int main(int argc, char* argv[])
    } else if (strcmp(argv[1], "scalers")==0) {
       int num = 1+cb->cb_read_input_num();
       while (1) {
-         // latch the counters
-         cb->cb_write32bis(0, 1, 0);
+         cb->cb_latch_scalers();
          int i = 7;
          printf("A cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
          printf("B cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
@@ -144,7 +139,7 @@ int main(int argc, char* argv[])
       }
       while (1) {
          // latch the counters
-         cb->cb_write32bis(0, 1, 0);
+         cb->cb_latch_scalers();
          int i = 7;
          printf("A cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
          printf("B cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
@@ -165,8 +160,7 @@ int main(int argc, char* argv[])
    } else if (strcmp(argv[1], "flows")==0) {
       uint32_t prevscalers[58];
       while (1) {
-         // latch the counters
-         cb->cb_write32bis(0, 1, 0);
+         cb->cb_latch_scalers();
          int i = 7;
          printf("A cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
          printf("B cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
@@ -245,13 +239,11 @@ int main(int argc, char* argv[])
       exit(1);
    }
    
-   // reset the counters
-   cb->cb_write32bis(0, 2, 0);
+   cb->cb_reset_scalers();
    
    int j;
    for (j=0; j<5; j++) {
-      // latch the counters
-      cb->cb_write32bis(0, 1, 0);
+      cb->cb_latch_scalers();
       i = 7;
       printf("A cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
       printf("B cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
@@ -271,8 +263,7 @@ int main(int argc, char* argv[])
    
    if (1) {
       while (1) {
-         // latch the counters
-         cb->cb_write32bis(0, 1, 0);
+         cb->cb_latch_scalers();
          int i = 7;
          printf("A cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
          printf("B cb reg %2d: 0x%08x\n", i, cb->cb_read32(i));
