@@ -95,8 +95,10 @@ int main(int argc, char* argv[])
                printf(" packet of %d scalers", num_scalers);
             } else if (count_scalers < num_scalers) {
                printf(" scaler %d", count_scalers);
-               if (v<last_v[count_scalers])
+               if (v < last_v[count_scalers]) {
                   printf(" overflow OR corrupt, was %d is %d (diff:%d)",last_v[count_scalers],v,v-last_v[count_scalers]);
+               }
+               last_v[count_scalers] = v;
                count_scalers++;
             } else {
                uint32_t ts = v & 0x00FFFFFF;
@@ -114,7 +116,6 @@ int main(int argc, char* argv[])
                prev_ts = ts;
                prev_ch = ch;
             }
-            last_v[count_scalers-1]=v;
             printf("\n");
          }
       }
