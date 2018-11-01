@@ -400,6 +400,9 @@ INT read_cbhist(char *pevent, INT off)
    sprintf(bankname,"CBH%d",frontend_index);
    bk_create(pevent, bankname, TID_DOUBLE, (void**)&p);
 
+   for (int i=0; i<gCbChans; i++)
+      p[i] = 0;
+
    uint64_t numClocks = gClock-gPrevClock;
    gPrevClock=gClock;
    //  double dt = numClocks/gMcsClockFreq;
@@ -416,8 +419,7 @@ INT read_cbhist(char *pevent, INT off)
    }
    p[gMcsClockChan] = (numClocks)*dt1;
 
-   //Force bank to its historic size
-   bk_close(pevent, p+gMcsChans+gMcsClockChan-1);
+   bk_close(pevent, p+gCbChans+1);
 
    for (int i=0; i<gMcsChans; i++)
       gSumChrono[i]=0;
