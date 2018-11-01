@@ -160,7 +160,7 @@ extern "C" {
   resume_run:     When a run is resumed. Should enable trigger events.
 \********************************************************************/
 
-Chronobox* gcb = 0;
+Chronobox* gcb = NULL;
 
 /*-- Global variables ----------------------------------------------*/
 
@@ -177,7 +177,7 @@ const double gClock_period = 1./gMcsClockFreq;
 
 // number of channels: 32+8+18+1
 //static const int gCbChans = 60; // number of channels
-static int gCbChans = 58; // number of channels
+static int gCbChans = 0; // number of channels, read from the chronobox itself
 static const int gMcsChans = 32; // number of scaler channels 
 static const int gFlowChan = 40; // first flowmeter channel
 static const int gNflowChans = 8; // number of flowmeter channel
@@ -387,47 +387,42 @@ extern "C" INT poll_event(INT source, INT count, BOOL test)
 
 INT read_cbhist(char *pevent, INT off)
 {
-  if( gcb ) 
-    {
+   if( gcb ) {
       if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
-    }
-  else
-    {
+   } else {
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
-    }
-  /* init bank structure */
-  bk_init32(pevent);
-  double *p;
-  char bankname[4];
-  sprintf(bankname,"CBH%d",frontend_index);
-  bk_create(pevent, bankname, TID_DOUBLE, (void**)&p);
+   }
+   /* init bank structure */
+   bk_init32(pevent);
+   double *p;
+   char bankname[4];
+   sprintf(bankname,"CBH%d",frontend_index);
+   bk_create(pevent, bankname, TID_DOUBLE, (void**)&p);
 
-  uint64_t numClocks = gClock-gPrevClock;
-  gPrevClock=gClock;
-  //  double dt = numClocks/gMcsClockFreq;
-  double dt = numClocks*gClock_period;
-  double dt1 = 0.;
-  if (dt > 0.) 
-    dt1 = 1.0/dt; 
-  for (int i=0; i<gMcsChans; i++) //Fifo could be asnycronus to other chans
-  {
-   
-    uint32_t counts=gSumChrono[i];
-    p[i] = (counts)*dt1;  // sample RaTe in Hz
-    if (counts>0)
+   uint64_t numClocks = gClock-gPrevClock;
+   gPrevClock=gClock;
+   //  double dt = numClocks/gMcsClockFreq;
+   double dt = numClocks*gClock_period;
+   double dt1 = 0.;
+   if (dt > 0.) 
+      dt1 = 1.0/dt; 
+   for (int i=0; i<gMcsChans; i++) { //Fifo could be asnycronus to other chans
+      uint32_t counts=gSumChrono[i];
+      p[i] = (counts)*dt1;  // sample RaTe in Hz
+      if (counts>0)
          printf("ch: %d\tcnts: %d\tdelta: %1.6f s\trate: %1.3f Hz\n",
-           i,counts,dt,p[i]);
-  }
-  p[gMcsClockChan] = (numClocks)*dt1;
+                i,counts,dt,p[i]);
+   }
+   p[gMcsClockChan] = (numClocks)*dt1;
 
-  //Force bank to its historic size
-  bk_close(pevent, p+gMcsChans+gMcsClockChan-1);
+   //Force bank to its historic size
+   bk_close(pevent, p+gMcsChans+gMcsClockChan-1);
 
-  for (int i=0; i<gMcsChans; i++)
-    gSumChrono[i]=0;
+   for (int i=0; i<gMcsChans; i++)
+      gSumChrono[i]=0;
 
-  return bk_size(pevent);
+   return bk_size(pevent);
 }
 
 bool FirstEvent=true;
@@ -451,12 +446,11 @@ int count_scalers = 0;
 
 INT read_cbms_fifo(char *pevent, INT off)
 {
-   if( gcb )
-   {
+   bool verbose = false;
+
+   if( gcb ) {
       if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
-   }
-   else
-   {
+   } else {
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
    }
@@ -469,113 +463,140 @@ INT read_cbms_fifo(char *pevent, INT off)
       bool fifo_empty = fifo_status & 0x40000000;
       int fifo_used   = fifo_status & 0x00FFFFFF;
       if (fifo_empty)
-      {
-         return NULL;
-      }
-      else
-      {
-         //Sleep(1);
-         if (1) 
          {
-            printf("latch scalers!\n");
-            gcb->cb_write32bis(0, 1, 0);
+            return NULL;
          }
+      else
+         {
+            //Sleep(1);
+            if (1) 
+               {
+                  if (verbose) {
+                     printf("latch scalers!\n");
+                  }
+                  gcb->cb_latch_scalers();
+               }
             //continue;
          }
+
+      if (verbose) {
          printf("fifo status: 0x%08x, full %d, empty %d, used %d\n", fifo_status, fifo_full, fifo_empty, fifo_used);
-         if (fifo_full && fifo_used == 0) {
-            fifo_used = 0x10;
-         }
+      }
+
+      if (fifo_full && fifo_used == 0) {
+         fifo_used = 0x10;
+      }
          
-         if (fifo_used>300)
+      if (fifo_used>300)
          {
             std::cout<<"fifo_used>300... bad event? skipping"<<std::endl;
             cm_msg(MINFO, frontend_name, "fifo_used>300... bad event? skipping");
             fifo_used=0;
          }
-         bool EVENT_GOOD=true;
-         for (int i=0; i<fifo_used; i++) {
-            gcb->cb_write32(0, 4);
-            gcb->cb_write32(0, 0);
-            uint32_t v = gcb->cb_read32(0x11);
+      bool EVENT_GOOD=true;
+      for (int i=0; i<fifo_used; i++) {
+         gcb->cb_write32(0, 4);
+         gcb->cb_write32(0, 0);
+         uint32_t v = gcb->cb_read32(0x11);
+         if (verbose) {
             //printf("read %3d: 0x%08x", i, v);
             printf("read %3d: %d", i, v);
-            if ((v & 0xFF000000) == 0xFF000000) {
+         }
+         if ((v & 0xFF000000) == 0xFF000000) {
+            if (verbose) {
                printf(" overflow 0x%04x", v & 0xFFFF);
-            } else if ((v & 0xFF000000) == 0xFE000000) {
-               num_scalers = v & 0xFFFF;
-               count_scalers = 0;
+            }
+         } else if ((v & 0xFF000000) == 0xFE000000) {
+            num_scalers = v & 0xFFFF;
+            count_scalers = 0;
+            if (verbose) {
                printf(" packet of %d scalers", num_scalers);
-            } else if (count_scalers < num_scalers) {
+            }
+         } else if (count_scalers < num_scalers) {
+            if (verbose) {
                printf(" scaler %d", count_scalers);
+            }
                
-               uint32_t dv = v-gLastChrono[count_scalers];
-               if (v<gLastChrono[count_scalers] &&
-                    gLastChrono[count_scalers]<(uint32_t)-((uint16_t)-1)/2)
-                    {
-                  printf("OVERFLOW!?  ");
-                  printf("Treating as corrupt event\n");
-                  //EVENT_GOOD=false;
-               }
-               gSaveChrono[count_scalers] = dv;
-               if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
+            uint32_t dv = v-gLastChrono[count_scalers];
+            if (v<gLastChrono[count_scalers] &&
+                gLastChrono[count_scalers]<(uint32_t)-((uint16_t)-1)/2)
                {
-                  if (EVENT_GOOD)
-                  {
-                  printf("\tChan:%d - %d\t",count_scalers,dv);
-                  ChronoChannelEvent a;
-                  a.Channel=(uint8_t)count_scalers;
-                  
-                  //Set ts a full counter (not difference since last)
-                  if (count_scalers==gMcsClockChan)
-                     a.Counts=v;
-                  else
-                     a.Counts=dv;
-                  buffer.push_back(a);
-                  ChansWithCounts++;
+                  if (verbose) {
+                     printf("OVERFLOW!?  ");
+                     printf("Treating as corrupt event\n");
+                     //EVENT_GOOD=false;
                   }
                }
-               gSumChrono[count_scalers]+=dv;
-               if (v > gMaxChrono[count_scalers])
-                  gMaxChrono[count_scalers] = v;
-               if (EVENT_GOOD) gLastChrono[count_scalers]= v;
-               count_scalers++;
-            } else {
-               uint32_t ts = v & 0x00FFFFFF;
-               int ch = (v & 0x7F000000)>>24;
+            gSaveChrono[count_scalers] = dv;
+            if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
+               {
+                  if (EVENT_GOOD) {
+                     if (verbose) {
+                        printf("\tChan:%d - %d\t",count_scalers,dv);
+                     }
+                     ChronoChannelEvent a;
+                     a.Channel=(uint8_t)count_scalers;
+                        
+                     //Set ts a full counter (not difference since last)
+                     if (count_scalers==gMcsClockChan)
+                        a.Counts=v;
+                     else
+                        a.Counts=dv;
+                     buffer.push_back(a);
+                     ChansWithCounts++;
+                  }
+               }
+            gSumChrono[count_scalers]+=dv;
+            if (v > gMaxChrono[count_scalers])
+               gMaxChrono[count_scalers] = v;
+            if (EVENT_GOOD) gLastChrono[count_scalers]= v;
+            count_scalers++;
+         } else {
+            uint32_t ts = v & 0x00FFFFFF;
+            int ch = (v & 0x7F000000)>>24;
                
-               if (ts == prev_ts) {
-                  if (ch != prev_ch) {
+            if (ts == prev_ts) {
+               if (ch != prev_ch) {
+                  if (verbose) {
                      printf(" coinc");
-                  } else {
+                  }
+               } else {
+                  if (verbose) {
                      printf(" dupe");
                   }
-               } else if (ts < prev_ts) {
+               }
+            } else if (ts < prev_ts) {
+               if (verbose) {
                   printf(" wrap");
                }
-               if (prev_ts != ts)
+            }
+            if (prev_ts != ts)
                {
-                  printf("\tTIME:\t%d on %d",ts,ch);
+                  if (verbose) {
+                     printf("\tTIME:\t%d on %d",ts,ch);
+                  }
                   ChronoChannelEvent e={100+ch,ts};
                   //buffer[ChansWithCounts].Channel=100+ch;
                   //buffer[ChansWithCounts].Counts=ts;
                   buffer.push_back(e);
                   ChansWithCounts++;
                }
-               prev_ts = ts;
-               prev_ch = ch;
-            }
+            prev_ts = ts;
+            prev_ch = ch;
+         }
+         if (verbose) {
             printf("\n");
          }
-         gClock=gLastChrono[59];
-         //if (ChansWithCounts>LastChansWithCounts)
-         //{
-         //   cce->Channel=gMcsClockChan;
-         //   cce->Counts=gClock;
-         //   ChansWithCounts++;
-         //   cce++;
-         //}
-         if (ChansWithCounts>100)
+      }
+      gClock=gLastChrono[59];
+      //if (ChansWithCounts>LastChansWithCounts)
+      //{
+      //   cce->Channel=gMcsClockChan;
+      //   cce->Counts=gClock;
+      //   ChansWithCounts++;
+      //   cce++;
+      //}
+      if (ChansWithCounts>100)
          {
             char bankname[4];
             sprintf(bankname,"CBS%d",frontend_index);
@@ -586,20 +607,20 @@ INT read_cbms_fifo(char *pevent, INT off)
             bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
             //Do I want to send these in reverse order (so that TS is the first event?)
             for (int i=0; i<buffer.size(); i++)
-            {
-               cce->Channel=buffer.at(i).Channel;
-               cce->Counts=buffer.at(i).Counts;
-               //std::cout<<"AAAA"<<i<<"/"<<ChansWithCounts<<
-               cce++;
-            }
+               {
+                  cce->Channel=buffer.at(i).Channel;
+                  cce->Counts=buffer.at(i).Counts;
+                  //std::cout<<"AAAA"<<i<<"/"<<ChansWithCounts<<
+                  cce++;
+               }
             
             bk_close(pevent, cce);
             buffer.clear();
             ChansWithCounts=0;
             return bk_size(pevent);
          }
-      }
-      return 0;
+   }
+   return 0;
 }
 INT read_flow(char *pevent, INT off)
 {
@@ -657,3 +678,12 @@ INT read_flow(char *pevent, INT off)
 
   return bk_size(pevent);
 }
+
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
