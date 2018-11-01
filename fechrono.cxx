@@ -443,8 +443,9 @@ std::vector<ChronoChannelEvent> buffer;
 //Time stamp events:
 uint32_t prev_ts = 0;
 int prev_ch = 0;
-int num_scalers = 0;
-int count_scalers = 0;
+static int num_scalers = 0;
+static int count_scalers = 0;
+static bool scalers_packet = false;
 
 INT read_cbms_fifo(char *pevent, INT off)
 {
@@ -459,14 +460,12 @@ INT read_cbms_fifo(char *pevent, INT off)
    int LastChansWithCounts=ChansWithCounts;
 
    if (1) {
-      if (1||verbose) {
+      if (verbose) {
          printf("latch scalers!\n");
       }
       gcb->cb_latch_scalers();
    }
 
-   bool scalers_packet = false;
-   
    std::vector<uint32_t> fifo_data;
 
    gcb->cb_read_fifo(&fifo_data);
@@ -488,17 +487,8 @@ INT read_cbms_fifo(char *pevent, INT off)
          //printf("read %3d: 0x%08x", i, v);
          printf("read %3d: %d", i, v);
       }
-      if ((v & 0xFF000000) == 0xFF000000) {
-         if (verbose) {
-            printf(" overflow 0x%04x", v & 0xFFFF);
-         }
-      } else if ((v & 0xFF000000) == 0xFE000000) {
-         num_scalers = v & 0xFFFF;
-         count_scalers = 0;
-         if (verbose) {
-            printf(" packet of %d scalers", num_scalers);
-         }
-      } else if (count_scalers < num_scalers) {
+
+      if (scalers_packet) {
          if (verbose) {
             printf(" scaler %d", count_scalers);
          }
@@ -537,6 +527,23 @@ INT read_cbms_fifo(char *pevent, INT off)
             gMaxChrono[count_scalers] = v;
          if (EVENT_GOOD) gLastChrono[count_scalers]= v;
          count_scalers++;
+         if (count_scalers == num_scalers) {
+            scalers_packet = false;
+            if (verbose) {
+               printf(" (last)");
+            }
+         }
+      } else if ((v & 0xFF000000) == 0xFF000000) {
+         if (verbose) {
+            printf(" overflow 0x%04x", v & 0xFFFF);
+         }
+      } else if ((v & 0xFF000000) == 0xFE000000) {
+         num_scalers = v & 0xFFFF;
+         count_scalers = 0;
+         scalers_packet = true;
+         if (verbose) {
+            printf(" packet of %d scalers", num_scalers);
+         }
       } else {
          uint32_t ts = v & 0x00FFFFFF;
          int ch = (v & 0x7F000000)>>24;
