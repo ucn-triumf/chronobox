@@ -60,10 +60,15 @@ int main(int argc, char* argv[])
       int num_scalers = 0;
       int count_scalers = 0;
       uint32_t last_v[60]={0};
+      bool scalers_packet = false;
 
       std::vector<uint32_t> fifo_data;
+      //std::vector<uint32_t> fifo_prev;
       
       while (1) {
+         //if (fifo_data.size() > 0) {
+         //   fifo_prev = fifo_data;
+         //}
          fifo_data.clear();
          cb->cb_read_fifo(&fifo_data);
 
@@ -80,22 +85,30 @@ int main(int argc, char* argv[])
             continue;
          }
 
+         //bool corrupt = false;
+
          for (int i=0; i<nread; i++) {
             uint32_t v = fifo_data[i];
-            printf("read %3d of %3d: 0x%08x", i, nread, v);
-            if ((v & 0xFF000000) == 0xFF000000) {
+            printf("word %3d of %3d: 0x%08x", i, nread, v);
+            if (scalers_packet) {
+               printf(" scaler %d", count_scalers);
+               if (v < last_v[count_scalers]) {
+                  printf(" overflow OR corrupt, was 0x%x now 0x%08x (diff:%d)",last_v[count_scalers],v,v-last_v[count_scalers]);
+                  //corrupt = true;
+               }
+               last_v[count_scalers] = v;
+               count_scalers++;
+               if (count_scalers == num_scalers) {
+                  printf(" (last)");
+                  scalers_packet = false;
+               }
+            } else if ((v & 0xFF000000) == 0xFF000000) {
                printf(" overflow 0x%04x", v & 0xFFFF);
             } else if ((v & 0xFF000000) == 0xFE000000) {
                num_scalers = v & 0xFFFF;
                count_scalers = 0;
                printf(" packet of %d scalers", num_scalers);
-            } else if (count_scalers < num_scalers) {
-               printf(" scaler %d", count_scalers);
-               if (v < last_v[count_scalers]) {
-                  printf(" overflow OR corrupt, was 0x%x now 0x%08x (diff:%d)",last_v[count_scalers],v,v-last_v[count_scalers]);
-               }
-               last_v[count_scalers] = v;
-               count_scalers++;
+               scalers_packet = true;
             } else {
                uint32_t ts = v & 0x00FFFFFF;
                int ch = (v & 0x7F000000)>>24;
@@ -114,6 +127,19 @@ int main(int argc, char* argv[])
             }
             printf("\n");
          }
+
+#if 0
+         if (corrupt) {
+            for (unsigned i=0; i<fifo_prev.size(); i++) {
+               uint32_t v = fifo_prev[i];
+               printf("word %3d of %3d: 0x%08x (previous corrupt block)\n", i, fifo_prev.size(), v);
+            }
+            for (int i=0; i<nread; i++) {
+               uint32_t v = fifo_data[i];
+               printf("word %3d of %3d: 0x%08x (current corrupt block)\n", i, nread, v);
+            }
+         }
+#endif
       }
       exit(0); 
    } else if (strcmp(argv[1], "scalers")==0) {
