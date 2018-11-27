@@ -1,7 +1,8 @@
 # Makefile for chronobox software. K.Olchanski TRIUMF August 2018
 
 INC_DIR   = $(MIDASSYS)/include
-LIB_DIR   = $(MIDASSYS)/linux-arm/lib
+#LIB_DIR   = $(MIDASSYS)/linux-arm/lib
+LIB_DIR   = $(MIDASSYS)/linux/lib
 SRC_DIR   = $(MIDASSYS)/src
 
 CFLAGS += -std=c++11 -Wall -Wuninitialized -g -Ialtera -Dsoc_cv_av -I$(INC_DIR)

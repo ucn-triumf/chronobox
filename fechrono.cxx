@@ -2,8 +2,9 @@
 
   Name:         fechrono.cxx
   Created by:   AC
+  Modified: Thomas Lindner for UCN (Nov 2018)
 
-  Contents:     Frontend for the ALPHA Chronobox
+  Contents:     Frontend for the UCN Chronobox
 
 \********************************************************************/
 
@@ -66,7 +67,7 @@ extern "C" {
   /*-- Equipment list ------------------------------------------------*/
   
   EQUIPMENT equipment[] = {
-#if 1
+#if 0
     {"cbhist%02d",             /* equipment name */
      { 10,                     /* event ID */
        (1<<10),                /* trigger mask */
@@ -88,7 +89,7 @@ extern "C" {
     },
 #endif 
 #if 1
-    {"cbms%02d",               /* equipment name */
+    {"chronobox%02d",               /* equipment name */
      { 10,                     /* event ID */
        (1<<10),                /* trigger mask */
        "SYSTEM",               /* event buffer */
@@ -109,7 +110,7 @@ extern "C" {
      NULL,                     /* bank list */
     },
 #endif
-#if 1
+#if 0
     {"cbflow%02d",             /* equipment name */
      { 4,                      /* event ID */
        (1<<4),                 /* trigger mask */
@@ -244,6 +245,18 @@ INT frontend_init()
   // assign to global pointer
   gcb=cb;
   gCbChans = gcb->cb_read_input_num(); 
+
+
+  uint32_t fwrev = gcb->cb_read32(0);
+  printf("cb fw rev: 0x%08x\n", fwrev);
+
+  // Set the channels to report leading and trailing edges
+  printf("Set the chronobox to report leading and trailing edges...\n");
+  gcb->cb_write32(0x14,0xffffffff);
+  gcb->cb_write32(0x15,0xffffffff);
+  gcb->cb_write32(0x16,0xffffffff);
+  gcb->cb_write32(0x17,0xffffffff);
+
 
   printf("chronobox %02d frontend_init done!\n",frontend_index);
 
@@ -447,9 +460,11 @@ static int num_scalers = 0;
 static int count_scalers = 0;
 static bool scalers_packet = false;
 
+
+
 INT read_cbms_fifo(char *pevent, INT off)
 {
-   bool verbose = false;
+   bool verbose = true;
 
    if( gcb ) {
       if(0) cm_msg(MINFO, frontend_name, "Chronobox Read");
@@ -457,14 +472,8 @@ INT read_cbms_fifo(char *pevent, INT off)
       cm_msg(MERROR, frontend_name, "Chronobox Read FAILED");
       return 0;
    }
-   int LastChansWithCounts=ChansWithCounts;
 
-   if (1) {
-      if (verbose) {
-         printf("latch scalers!\n");
-      }
-      gcb->cb_latch_scalers();
-   }
+
 
    std::vector<uint32_t> fifo_data;
 
@@ -472,8 +481,8 @@ INT read_cbms_fifo(char *pevent, INT off)
 
    int nread = fifo_data.size();
 
-   if (verbose) {
-      printf("read %d words\n", nread);
+   if (verbose || 1) {
+      //printf("read %d words\n", nread);
    }
 
    if (nread == 0) {
@@ -481,139 +490,36 @@ INT read_cbms_fifo(char *pevent, INT off)
    }
 
    bool EVENT_GOOD=true;
+
+   char bankname[4];
+   //sprintf(bankname,"CBS0",frontend_index);
+   /* init bank structure */
+   bk_init32(pevent);
+   uint32_t *pdata;
+   /* create data bank */
+   bk_create(pevent, "CBS0", TID_DWORD, (void**)&pdata);
+
+   //   printf("Start loop...\n");
    for (int i=0; i<nread; i++) {
+      //printf("Loop %i\n",i);
       uint32_t v = fifo_data[i];
+      //printf("FFF %i\n",v);
       if (verbose) {
          //printf("read %3d: 0x%08x", i, v);
-         printf("read %3d: %d", i, v);
-      }
-
-      if (scalers_packet) {
-         if (verbose) {
-            printf(" scaler %d", count_scalers);
-         }
-               
-         uint32_t dv = v-gLastChrono[count_scalers];
-         if (v<gLastChrono[count_scalers] &&
-             gLastChrono[count_scalers]<(uint32_t)-((uint16_t)-1)/2)
-            {
-               if (verbose) {
-                  printf("OVERFLOW!?  ");
-                  printf("Treating as corrupt event\n");
-                  //EVENT_GOOD=false;
-               }
-            }
-         gSaveChrono[count_scalers] = dv;
-         if (gSaveChrono[count_scalers]>0 ) //&& i!=gMcsClockChan)
-            {
-               if (EVENT_GOOD) {
-                  if (verbose) {
-                     printf("\tChan:%d - %d\t",count_scalers,dv);
-                  }
-                  ChronoChannelEvent a;
-                  a.Channel=(uint8_t)count_scalers;
-                        
-                  //Set ts a full counter (not difference since last)
-                  if (count_scalers==gMcsClockChan)
-                     a.Counts=v;
-                  else
-                     a.Counts=dv;
-                  buffer.push_back(a);
-                  ChansWithCounts++;
-               }
-            }
-         gSumChrono[count_scalers]+=dv;
-         if (v > gMaxChrono[count_scalers])
-            gMaxChrono[count_scalers] = v;
-         if (EVENT_GOOD) gLastChrono[count_scalers]= v;
-         count_scalers++;
-         if (count_scalers == num_scalers) {
-            scalers_packet = false;
-            if (verbose) {
-               printf(" (last)");
-            }
-         }
-      } else if ((v & 0xFF000000) == 0xFF000000) {
-         if (verbose) {
-            printf(" overflow 0x%04x", v & 0xFFFF);
-         }
-      } else if ((v & 0xFF000000) == 0xFE000000) {
-         num_scalers = v & 0xFFFF;
-         count_scalers = 0;
-         scalers_packet = true;
-         if (verbose) {
-            printf(" packet of %d scalers", num_scalers);
-         }
-      } else {
-         uint32_t ts = v & 0x00FFFFFF;
-         int ch = (v & 0x7F000000)>>24;
-               
-         if (ts == prev_ts) {
-            if (ch != prev_ch) {
-               if (verbose) {
-                  printf(" coinc");
-               }
-            } else {
-               if (verbose) {
-                  printf(" dupe");
-               }
-            }
-         } else if (ts < prev_ts) {
-            if (verbose) {
-               printf(" wrap");
-            }
-         }
-         if (prev_ts != ts)
-            {
-               if (verbose) {
-                  printf("\tTIME:\t%d on %d",ts,ch);
-               }
-               ChronoChannelEvent e={100+ch,ts};
-               //buffer[ChansWithCounts].Channel=100+ch;
-               //buffer[ChansWithCounts].Counts=ts;
-               buffer.push_back(e);
-               ChansWithCounts++;
-            }
-         prev_ts = ts;
-         prev_ch = ch;
-      }
-      if (verbose) {
-         printf("\n");
-      }
-   }
-
-   gClock=gLastChrono[59];
-   //if (ChansWithCounts>LastChansWithCounts)
-   //{
-   //   cce->Channel=gMcsClockChan;
-   //   cce->Counts=gClock;
-   //   ChansWithCounts++;
-   //   cce++;
-   //}
-   if (ChansWithCounts>100) {
-      char bankname[4];
-      sprintf(bankname,"CBS%d",frontend_index);
-      /* init bank structure */
-      bk_init32(pevent);
-      ChronoChannelEvent* cce;
-      /* create data bank */
-      bk_create(pevent, bankname, TID_STRUCT, (void**)&cce);
-      //Do I want to send these in reverse order (so that TS is the first event?)
-      for (int i=0; i<buffer.size(); i++) {
-         cce->Channel=buffer.at(i).Channel;
-         cce->Counts=buffer.at(i).Counts;
-         //std::cout<<"AAAA"<<i<<"/"<<ChansWithCounts<<
-         cce++;
+         printf("read %3d: %x\n", i, v);
       }
       
-      bk_close(pevent, cce);
-      buffer.clear();
-      ChansWithCounts=0;
-      return bk_size(pevent);
+      // printf("pdata\n", i, v);
+      *pdata++ = v;
+      //   printf("pdata++\n", i, v);
    }
+   
+   fifo_data.clear();
+   bk_close(pevent, pdata);
+   return bk_size(pevent);
 
-   return 0;
 }
+
 INT read_flow(char *pevent, INT off)
 {
   if( frontend_index != 1 )
