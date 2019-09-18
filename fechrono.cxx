@@ -67,27 +67,6 @@ extern "C" {
   /*-- Equipment list ------------------------------------------------*/
   
   EQUIPMENT equipment[] = {
-#if 0
-    {"cbhist%02d",             /* equipment name */
-     { 10,                     /* event ID */
-       (1<<10),                /* trigger mask */
-       "SYSTEM",               /* event buffer */
-       EQ_PERIODIC,            /* equipment type */
-       0,                      /* event source */
-       "MIDAS",                /* format */
-       TRUE,                   /* enabled */
-       RO_ALWAYS,              /* when to read this event */
-       1000,                   /* poll time in milliseconds */
-       0,                      /* stop run after this event limit */
-       0,                      /* number of sub events */
-       1,                      /* whether to log history */
-       "", "", "",},
-     read_cbhist,              /* readout routine */
-     NULL,
-     NULL,
-     NULL,                     /* bank list */
-    },
-#endif 
 #if 1
     {"chronobox%02d",               /* equipment name */
      { 10,                     /* event ID */
@@ -105,27 +84,6 @@ extern "C" {
        0,                      /* whether to log history */
        "", "", "",},
      read_cbms_fifo,                /* readout routine */
-     NULL,
-     NULL,
-     NULL,                     /* bank list */
-    },
-#endif
-#if 0
-    {"cbflow%02d",             /* equipment name */
-     { 4,                      /* event ID */
-       (1<<4),                 /* trigger mask */
-       "",                     /* event buffer */
-       EQ_PERIODIC,            /* equipment type */
-       0,                      /* event source */
-       "MIDAS",                /* format */
-       TRUE,                   /* enabled */
-       RO_ALWAYS,              /* when to read this event */
-       1000,                   /* poll time in milliseconds */
-       0,                      /* stop run after this event limit */
-       0,                      /* number of sub events */
-       1,                      /* whether to log history */
-       "", "", "",},
-     read_flow,                /* readout routine */
      NULL,
      NULL,
      NULL,                     /* bank list */
@@ -211,24 +169,6 @@ INT frontend_init()
   setbuf(stdout,NULL);
   setbuf(stderr,NULL);
 
-  char str[64];
-  sprintf(str, "/Equipment/cbms%02d/Settings/ChannelNames", frontend_index);
-  odbReadString(str, 0, "dummy", 250);
-  odbResizeArray(str, TID_STRING, 60);
-
-  int sz = odbReadArraySize(str);
-  int last = 0;
-  for (int i=0; i<sz; i++) {
-    const char* s = odbReadString(str, i, NULL, 250);
-    if (strlen(s) < 1)
-      continue;
-    if (s[0] == '#')
-      continue;
-    printf("Channel Name %d:%s\n", i, s);
-    ChannelNames.push_back(s);
-    last = i;
-  }
-
 
   Chronobox* cb = new Chronobox();
 
@@ -260,27 +200,6 @@ INT frontend_init()
 
   printf("chronobox %02d frontend_init done!\n",frontend_index);
 
-#if 1
-  // Disable and hide the equipment in case of index != 1
-  // no flowmeter connected
-  if (frontend_index != 1) {
-    int size = sizeof(int);
-    int en;
-    char str[64];
-    HNDLE hDB;
-    cm_get_experiment_database(&hDB, NULL);
-    sprintf(str, "/Equipment/cbflow%02d/Common/enabled", frontend_index);
-    db_get_value(hDB, 0, str, &en, &size, TID_BOOL, FALSE);
-    printf("Equipment cbflow idx:%d Enabled:%i \n", frontend_index, en);
-    en = 0;
-    db_set_value(hDB, 0, str, &en, size, 1, TID_BOOL);
-    db_get_value(hDB, 0, str, &en, &size, TID_BOOL, FALSE);
-    sprintf(str, "/Equipment/cbflow%02d/Common/Hidden", frontend_index);
-    en = 1;
-    db_set_value(hDB, 0, str, &en, size, 1, TID_BOOL);
-    printf("Equipment %s :%i \n", str, en);
-  }
-#endif
 
   for(int j=0; j<gCbChans; ++j) gMaxChrono[j]=gSaveChrono[j]=gSumChrono[j]=uint32_t(0);
   char nchan[64];
