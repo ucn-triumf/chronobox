@@ -66,9 +66,7 @@ int main(int argc, char* argv[])
       //std::vector<uint32_t> fifo_prev;
       
       while (1) {
-         //if (fifo_data.size() > 0) {
-         //   fifo_prev = fifo_data;
-         //}
+
          fifo_data.clear();
          cb->cb_read_fifo(&fifo_data);
 
@@ -78,7 +76,7 @@ int main(int argc, char* argv[])
          
          if (nread == 0) {
             sleep(1);
-            if (1) {
+            if (0) {
                printf("latch scalers!\n");
                cb->cb_latch_scalers();
             }
